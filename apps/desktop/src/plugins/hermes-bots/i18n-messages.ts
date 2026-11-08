@@ -395,7 +395,7 @@ export type BotsMessages = {
 
   /** Bot-scoped scheduled jobs. Generic scheduling chrome (weekday names,
    *  Daily/Hourly, the job verbs) resolves against core's `cron` section. */
-  cron: CronHistoryMessages & {
+  cron: { [K in keyof CronHistoryMessages]: CronHistoryMessages[K] } & {
     untitled: string
     nameNul: string
     instructionNul: string

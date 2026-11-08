@@ -137,6 +137,9 @@ describe('saved runs in the Routines pane', () => {
           route: bot.route,
           profile: 'radio',
           intent: 'tab',
+          awaitHydration: true,
+          forceResume: true,
+          expectHistory: true,
           workspaceMode: 'bots',
           workspaceOwnerKey: 'bot:source-a::radio'
         })
@@ -212,6 +215,16 @@ describe('saved runs in the Routines pane', () => {
 })
 
 describe('opening saved cron sessions', () => {
+  it('waits for an explicitly empty run without requiring transcript messages', async () => {
+    await openBotCronHistoryRun(bot, run('empty', { message_count: 0 }))
+
+    expect(openSession).toHaveBeenCalledWith(
+      'empty',
+      expect.objectContaining({ awaitHydration: true, forceResume: true, expectHistory: false })
+    )
+    expect(request).not.toHaveBeenCalled()
+  })
+
   it('delegates dead never-closed runs to the central gate without creating a chat or calling an agent', async () => {
     const stopped = run('local-zombie', { ended_at: null, scheduler_owned: false })
     await openBotCronHistoryRun(bot, stopped)
@@ -229,7 +242,11 @@ describe('opening saved cron sessions', () => {
 
 it('ships history copy in every registered plugin locale', () => {
   for (const messages of Object.values(BOTS_LOCALES)) {
-    expect((messages.cron as Record<string, unknown>).historyEmpty).toEqual(expect.any(String))
-    expect((messages.cron as Record<string, unknown>).historyFailedLoad).toEqual(expect.any(String))
+    if (!messages || typeof messages.cron !== 'object') {
+      throw new Error('A registered Bot locale is missing its cron history messages')
+    }
+
+    expect(messages.cron.historyEmpty).toEqual(expect.any(String))
+    expect(messages.cron.historyFailedLoad).toEqual(expect.any(String))
   }
 })

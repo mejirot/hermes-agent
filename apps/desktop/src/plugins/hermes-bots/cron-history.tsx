@@ -16,6 +16,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 
 import { saveSelectedRosterBot } from './bot-state'
+import { resolveExpectHistory } from './canonical-chat'
 import { useBots } from './i18n'
 import { displayName, stripPreviewMarkdown } from './labels'
 import {
@@ -87,6 +88,9 @@ export async function openBotCronHistoryRun(bot: RosterRow, run: BotCronRun): Pr
       ...(route ? { route } : {}),
       profile: bot.name,
       intent: 'tab',
+      awaitHydration: true,
+      expectHistory: resolveExpectHistory(run),
+      forceResume: true,
       keepAllProfilesScope: true,
       workspaceMode: 'bots',
       workspaceOwnerKey: ownerKey

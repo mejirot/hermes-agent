@@ -137,7 +137,9 @@ vi.mock('@/store/gateway', async () => {
   }
 })
 
-const { HYDRATION_SYNC_BADGE_TIMEOUT_MS, host } = await import('./index')
+const { HYDRATION_SYNC_BADGE_TIMEOUT_MS, host, openCronRun } = await import('./index')
+
+const { $cronRunReadOnlyVerdicts, isCronRunReadOnly } = await import('@/store/read-only-transcript')
 
 const { openSession: openSessionCore } = await import('@/app/open-session')
 const { deleteProfile, hermesApi } = await import('@/hermes')
@@ -208,6 +210,7 @@ afterEach(() => {
   setMockAtom($activeSessionId, null)
   setMockAtom($selectedStoredSessionId, null)
   setMockAtom($messages, [])
+  $cronRunReadOnlyVerdicts.set(new Map())
   $profiles.set([profile('cached-only')])
   setWorkspaceScope('sessions')
   delete (window as unknown as { hermesDesktop?: unknown }).hermesDesktop
@@ -937,6 +940,59 @@ describe('profile-aware plugin session opens', () => {
 
     expect(resumeTile).toHaveBeenCalledWith('bot-chat', { refreshTranscript: true })
     expect(requestSessionResume).not.toHaveBeenCalled()
+  })
+
+  it('refreshes a cached cron tile on its Bot owner route without clearing the cron write gate', async () => {
+    const route = {
+      connectionId: 'source-a',
+      mode: 'remote' as const,
+      profile: 'radio',
+      targetProfile: 'backend-radio'
+    }
+    const run = { id: 'local-cron-history', ended_at: null, last_active: 1, scheduler_owned: false }
+    const resumeTile = vi.fn(async () => 'runtime-cron-history')
+
+    vi.mocked(sessionTileDelegate).mockReturnValue({ resumeTile } as never)
+    setMockAtom($sessionTiles, [{ storedSessionId: run.id, ownerRoute: route }] as never)
+    setMockAtom($focusedStoredSessionId, run.id)
+    setMockAtom($focusedRuntimeId, 'runtime-cron-history')
+    setMockAtom($focusedSessionState, {
+      messages: [{ id: 'cached-output', parts: [], role: 'assistant' }],
+      storedSessionId: run.id
+    } as never)
+
+    let opening = Promise.resolve()
+
+    openCronRun(run, id => {
+      opening = host.openSession(id, {
+        route,
+        profile: 'radio',
+        intent: 'tab',
+        awaitHydration: true,
+        expectHistory: true,
+        forceResume: true,
+        hydrationTimeoutMs: 1_000,
+        keepAllProfilesScope: true,
+        workspaceMode: 'bots',
+        workspaceOwnerKey: 'bot:source-a::radio'
+      })
+    })
+
+    expect(isCronRunReadOnly(run.id)).toBe(true)
+    await opening
+
+    expect(openGatewayForAgent).toHaveBeenCalledWith('source-a', 'radio', { spawnPriority: 'foreground' })
+    expect(setSessionOwnerHint).toHaveBeenCalledWith(run.id, route)
+    expect(openSessionCore).toHaveBeenCalledWith(run.id, expect.any(Function), 'tab', {
+      ownerRoute: route,
+      workspaceMode: 'bots',
+      workspaceOwnerKey: 'bot:source-a::radio'
+    })
+    expect(resumeTile).toHaveBeenCalledWith(run.id, { refreshTranscript: true })
+    expect(isCronRunReadOnly(run.id)).toBe(true)
+    expect(requestSessionResume).not.toHaveBeenCalled()
+    expect(requestGatewayForAgent).not.toHaveBeenCalled()
+    expect(requestGatewayForProfile).not.toHaveBeenCalled()
   })
 
   it('forces a resume on an explicit bot switch even when a cached transcript looks healthy (#93604)', async () => {
