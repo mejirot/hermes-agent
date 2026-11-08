@@ -1618,6 +1618,7 @@ export { WorkspacePageHeaderControl } from '@/app/contrib/workspace-page-header'
  *  that prints a next run switches its label on this (`t.cron.next` →
  *  `t.cron.overdueSince`) so a dead scheduler never reads as "Next: 7 hr ago". */
 export { nextRunOverdueMs } from '@/app/cron/job-state'
+export { openCronRun, reconcileCronRunVerdicts } from '@/app/cron/open-cron-run'
 
 /** Master-detail components for pane content; the overlay-bound Panel root is deliberately private. */
 export {
@@ -1751,7 +1752,6 @@ export {
 } from '@/components/ui/dropdown-menu'
 export { EmptyState } from '@/components/ui/empty-state'
 export { ErrorState } from '@/components/ui/error-state'
-export { openCronRun, reconcileCronRunVerdicts } from '@/app/cron/open-cron-run'
 export { FadeScroll } from '@/components/ui/fade-scroll'
 export { GlyphSpinner } from '@/components/ui/glyph-spinner'
 export { Input } from '@/components/ui/input'

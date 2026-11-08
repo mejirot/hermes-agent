@@ -33,8 +33,8 @@ import { type PluginLocaleBundles, type PluginTranslate, usePluginI18n } from '@
 import { useMemo } from 'react'
 
 import { CANONICAL_GROUP_LOCALES } from './canonical-group-locales'
-import { CROSS_GATEWAY_GROUP_LOCALES } from './cross-gateway-locales'
 import { CRON_HISTORY_LOCALES } from './cron-history-locales'
+import { CROSS_GATEWAY_GROUP_LOCALES } from './cross-gateway-locales'
 import { bind, type Bound } from './i18n-bind'
 import { type BotsMessages } from './i18n-messages'
 import { getPluginCtx } from './shared'

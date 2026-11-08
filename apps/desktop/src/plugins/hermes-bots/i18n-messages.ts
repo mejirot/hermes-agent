@@ -3,8 +3,8 @@
  */
 
 import { type CanonicalGroupMessages } from './canonical-group-locales'
-import { type CrossGatewayGroupMessages } from './cross-gateway-locales'
 import type { CronHistoryMessages } from './cron-history-locales'
+import { type CrossGatewayGroupMessages } from './cross-gateway-locales'
 
 export type BotsMessages = {
   canonical: { [K in keyof CanonicalGroupMessages]: string }

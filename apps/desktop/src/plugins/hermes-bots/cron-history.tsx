@@ -71,6 +71,7 @@ export async function loadBotCronHistory(bot: RosterRow, offset = 0): Promise<Hi
 
 export async function openBotCronHistoryRun(bot: RosterRow, run: BotCronRun): Promise<void> {
   const route = botConnectionRoute(bot)
+
   if (run.source !== 'cron' || !run.id || (run.profile && run.profile !== backendTargetProfile(route, bot.name))) {
     return
   }
@@ -121,14 +122,24 @@ export function BotCronHistory({ owner }: { owner: RosterRow }) {
     const offset = append ? history.nextOffset : 0
     setBusy(true)
     setError(false)
+
     try {
       const page = await loadBotCronHistory(bot, offset)
-      if (request !== generation.current) return
+
+      if (request !== generation.current) {
+        return
+      }
+
       reconcileCronRunVerdicts(page.sessions)
       setHistory(previous => {
         const merged = new Map((append ? previous.runs : []).map(run => [run.id, run]))
-        for (const run of page.sessions) merged.set(run.id, run)
+
+        for (const run of page.sessions) {
+          merged.set(run.id, run)
+        }
+
         const nextOffset = offset + page.sessions.length
+
         return {
           runs: [...merged.values()],
           nextOffset,
@@ -136,14 +147,21 @@ export function BotCronHistory({ owner }: { owner: RosterRow }) {
         }
       })
     } catch {
-      if (request === generation.current) setError(true)
+      if (request === generation.current) {
+        setError(true)
+      }
     } finally {
-      if (request === generation.current) setBusy(false)
+      if (request === generation.current) {
+        setBusy(false)
+      }
     }
   }
 
+  // Invalidate pending requests on cleanup; this ref never mirrors an atom.
+  // eslint-disable-next-line no-restricted-syntax
   useEffect(() => {
     void load()
+
     return () => {
       generation.current += 1
     }
@@ -153,6 +171,7 @@ export function BotCronHistory({ owner }: { owner: RosterRow }) {
 
   const open = async (run: BotCronRun) => {
     setOpening(run.id)
+
     try {
       await openBotCronHistoryRun(bot, run)
     } catch (failure) {
@@ -207,6 +226,7 @@ export function BotCronHistory({ owner }: { owner: RosterRow }) {
           <div className="grid gap-1 px-2 py-1">
             {history.runs.map(run => {
               const timestamp = (run.started_at || run.last_active) * 1000
+
               return (
                 <RowButton
                   className="grid min-w-0 gap-1 rounded-md px-2 py-2 text-left hover:bg-(--chrome-action-hover)"

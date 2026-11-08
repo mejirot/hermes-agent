@@ -1,8 +1,7 @@
+import { openCronRun, reconcileCronRunVerdicts } from '@hermes/plugin-sdk'
 import type * as HermesSdk from '@hermes/plugin-sdk'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { isCronRunReadOnly } from '@/store/read-only-transcript'
 
 import { BOTS_LOCALES } from './i18n'
 import { translateBots } from './i18n-test-helper'
@@ -18,6 +17,8 @@ vi.mock('@hermes/plugin-sdk', async importOriginal => {
   const sdk = await importOriginal<typeof HermesSdk>()
   return {
     ...sdk,
+    openCronRun: vi.fn(sdk.openCronRun),
+    reconcileCronRunVerdicts: vi.fn(sdk.reconcileCronRunVerdicts),
     host: {
       ...sdk.host,
       listPersistedSessions,
@@ -55,6 +56,7 @@ const run = (id: string, changes: Partial<Run> = {}): Run => ({
   last_active: 1_794_110_410,
   ended_at: 1_794_110_420,
   message_count: 2,
+  tool_call_count: 0,
   input_tokens: 0,
   output_tokens: 0,
   is_active: false,
@@ -117,14 +119,14 @@ describe('saved runs in the Routines pane', () => {
   it('paginates saved runs and opens an existing run as a Bots tab with the central cron write gate', async () => {
     const rows = Array.from({ length: 20 }, (_, i) => run(String(i)))
     listPersistedSessions.mockResolvedValueOnce(page(rows, 21)).mockResolvedValueOnce(page([run('older')], 21))
-    render(<BotCronHistory owner={bot} />)
+    const view = render(<BotCronHistory owner={bot} />)
     await screen.findByText('Report 0')
     fireEvent.click(screen.getByRole('button', { name: 'Load more' }))
     await screen.findByText('Report older')
     expect(listPersistedSessions.mock.calls[1][1].offset).toBe(20)
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
     expect(screen.getAllByText('Saved output')).toHaveLength(21)
-    expect(document.querySelector('time')?.getAttribute('datetime')).toBe(
+    expect(view.container.querySelector('time')?.getAttribute('datetime')).toBe(
       new Date(rows[0].started_at * 1000).toISOString()
     )
     fireEvent.click(screen.getByRole('button', { name: /Report older/ }))
@@ -186,16 +188,17 @@ describe('saved runs in the Routines pane', () => {
     expect(screen.queryByText('Report saved')).toBeNull()
   })
 
-  it('refreshes the write verdict of an already opened run when its saved row closes', async () => {
+  it('delegates refreshed run rows to the central verdict reconciler', async () => {
     const stopped = run('local-refresh-verdict', { ended_at: null, scheduler_owned: false })
     await openBotCronHistoryRun(bot, stopped)
-    expect(isCronRunReadOnly(stopped.id)).toBe(true)
-    listPersistedSessions.mockResolvedValueOnce(page([run(stopped.id)]))
+    expect(openCronRun).toHaveBeenCalledWith(stopped, expect.any(Function))
+    const closed = run(stopped.id)
+    listPersistedSessions.mockResolvedValueOnce(page([closed]))
 
     render(<BotCronHistory owner={bot} />)
 
     await screen.findByText(`Report ${stopped.id}`)
-    expect(isCronRunReadOnly(stopped.id)).toBe(false)
+    expect(reconcileCronRunVerdicts).toHaveBeenCalledWith([closed])
   })
 
   it('distinguishes initial load failure from an empty history', async () => {
@@ -209,9 +212,10 @@ describe('saved runs in the Routines pane', () => {
 })
 
 describe('opening saved cron sessions', () => {
-  it('protects a dead never-closed run without creating a chat or calling an agent', async () => {
-    await openBotCronHistoryRun(bot, run('local-zombie', { ended_at: null, scheduler_owned: false }))
-    expect(isCronRunReadOnly('local-zombie')).toBe(true)
+  it('delegates dead never-closed runs to the central gate without creating a chat or calling an agent', async () => {
+    const stopped = run('local-zombie', { ended_at: null, scheduler_owned: false })
+    await openBotCronHistoryRun(bot, stopped)
+    expect(openCronRun).toHaveBeenCalledWith(stopped, expect.any(Function))
     expect(openSession).toHaveBeenCalledTimes(1)
     expect(request).not.toHaveBeenCalled()
   })
