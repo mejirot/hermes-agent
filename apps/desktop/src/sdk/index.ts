@@ -1430,7 +1430,14 @@ export const host = {
    *  that profile's gateway. The source primary opens state.db directly. */
   listPersistedSessions: async (
     route: PluginProfileRoute | null,
-    options: { profile: string; limit?: number }
+    options: {
+      profile: string
+      limit?: number
+      offset?: number
+      source?: string
+      order?: 'created' | 'recent'
+      minMessages?: number
+    }
   ): Promise<PaginatedSessions> => {
     if (route && (!route.connectionId.trim() || !route.profile.trim() || !route.targetProfile.trim())) {
       throw new Error('Profile route must include connectionId, profile, and targetProfile')
@@ -1446,12 +1453,16 @@ export const host = {
 
     const query = new URLSearchParams({
       limit: String(limit),
-      offset: '0',
-      min_messages: '0',
+      offset: String(Math.max(0, options.offset ?? 0)),
+      min_messages: String(Math.max(0, options.minMessages ?? 0)),
       archived: 'exclude',
-      order: 'created',
+      order: options.order ?? 'created',
       profile
     })
+
+    if (options.source) {
+      query.set('source', options.source)
+    }
 
     return hermesApi<PaginatedSessions>({
       ...(route ? { connectionId: route.connectionId } : {}),
@@ -1740,6 +1751,7 @@ export {
 } from '@/components/ui/dropdown-menu'
 export { EmptyState } from '@/components/ui/empty-state'
 export { ErrorState } from '@/components/ui/error-state'
+export { openCronRun, reconcileCronRunVerdicts } from '@/app/cron/open-cron-run'
 export { FadeScroll } from '@/components/ui/fade-scroll'
 export { GlyphSpinner } from '@/components/ui/glyph-spinner'
 export { Input } from '@/components/ui/input'

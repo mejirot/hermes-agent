@@ -368,6 +368,36 @@ describe('connection-aware plugin host APIs', () => {
     expect(vi.mocked(hermesApi).mock.calls.map(([request]) => request.connectionId)).toEqual([null, null])
   })
 
+  it('scopes paginated cron history reads to the captured source without activating an agent', async () => {
+    const route = {
+      connectionId: 'source-a',
+      mode: 'remote' as const,
+      profile: 'radio',
+      targetProfile: 'backend-radio'
+    }
+    vi.mocked(hermesApi).mockResolvedValueOnce({ sessions: [], total: 40 })
+
+    await host.listPersistedSessions(route, {
+      profile: 'backend-radio',
+      limit: 20,
+      offset: 20,
+      source: 'cron',
+      order: 'recent',
+      minMessages: 0
+    })
+
+    const request = vi.mocked(hermesApi).mock.calls[0][0]
+    const query = new URL(request.path, 'http://localhost').searchParams
+    expect(request.connectionId).toBe('source-a')
+    expect(query.get('profile')).toBe('backend-radio')
+    expect(query.get('source')).toBe('cron')
+    expect(query.get('offset')).toBe('20')
+    expect(query.get('limit')).toBe('20')
+    expect(query.get('order')).toBe('recent')
+    expect(requestGatewayForAgent).not.toHaveBeenCalled()
+    expect(requestGatewayForProfile).not.toHaveBeenCalled()
+  })
+
   it('forwards an explicit timeout so long-running methods outlive the generic deadline', async () => {
     // #93911: bot_relay.deliver's backend contract tolerates ~1320s (120s turn
     // lock + a 600s turn, doubled by the bounded retry). Without a way to pass

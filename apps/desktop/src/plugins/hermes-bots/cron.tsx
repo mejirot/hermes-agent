@@ -24,6 +24,7 @@ import {
   queryClient,
   relativeTime,
   RowButton,
+  SegmentedControl,
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +42,7 @@ import { useState } from 'react'
 
 import { avatarColor, botAppearance, BotFace } from './avatar'
 import { $focusedBotOwner, $selectedBot, focusedRosterOwner } from './bot-state'
+import { BotCronHistory, cronHistoryOwnerKey } from './cron-history'
 import { $botMeta, $lastRoster, botHandle, botRosterKey, botSelectionKey, isActiveRosterBot } from './data'
 import { labeled } from './dialog-parts'
 import { botsText, type BotsText, useBots } from './i18n'
@@ -1200,7 +1202,7 @@ export function resolveRoutineOwner(
   )
 }
 
-export function RoutinesPane() {
+function ScheduledRoutinesPane() {
   const selected = useValue($selectedBot)
   const focusedOwner = focusedRosterOwner(useValue($focusedBotOwner))
   // Subscribe instead of a bare read: BotsPane owns the roster fetch and
@@ -1274,7 +1276,6 @@ export function RoutinesPane() {
               <span className="shrink-0 font-mono text-[0.65rem] text-(--ui-text-quaternary)">{`@${botHandle(bot, owner)}`}</span>
             ) : null}
           </div>
-          <div className="text-[0.65rem] uppercase tracking-wider text-(--ui-text-quaternary)">{c.title}</div>
         </div>
         <Tip label={c.newCron}>
           <Button aria-label={c.newCron} onClick={openCreate} size="icon-xs" variant="ghost">
@@ -1340,6 +1341,41 @@ export function RoutinesPane() {
         }}
         open={createOpen}
       />
+    </div>
+  )
+}
+
+/** Keep browsing saved runs separate from scheduled-job reads and controls. */
+export function RoutinesPane() {
+  const [tab, setTab] = useState<'jobs' | 'history'>('jobs')
+  const selected = useValue($selectedBot)
+  const focusedOwner = focusedRosterOwner(useValue($focusedBotOwner))
+  const owner = resolveRoutineOwner(useValue($lastRoster), focusedOwner, selected)
+  const connectionId = useValue(host.state.connectionId)
+  const b = useBots()
+  const { t } = useI18n()
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="px-3 pt-3">
+        <SegmentedControl
+          onChange={setTab}
+          options={[
+            { id: 'jobs', label: t.cron.title },
+            { id: 'history', label: t.cron.runHistory }
+          ]}
+          value={tab}
+        />
+      </div>
+      <div className="min-h-0 flex-1">
+        {tab === 'jobs' ? (
+          <ScheduledRoutinesPane />
+        ) : owner ? (
+          <BotCronHistory key={cronHistoryOwnerKey(owner, connectionId)} owner={owner} />
+        ) : (
+          <PanelEmpty description={b.cron.needsRosterFirst} icon="hubot" title={t.cron.runHistory} />
+        )}
+      </div>
     </div>
   )
 }

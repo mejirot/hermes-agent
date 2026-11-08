@@ -4,6 +4,7 @@
 
 import { type CanonicalGroupMessages } from './canonical-group-locales'
 import { type CrossGatewayGroupMessages } from './cross-gateway-locales'
+import type { CronHistoryMessages } from './cron-history-locales'
 
 export type BotsMessages = {
   canonical: { [K in keyof CanonicalGroupMessages]: string }
@@ -394,7 +395,7 @@ export type BotsMessages = {
 
   /** Bot-scoped scheduled jobs. Generic scheduling chrome (weekday names,
    *  Daily/Hourly, the job verbs) resolves against core's `cron` section. */
-  cron: {
+  cron: CronHistoryMessages & {
     untitled: string
     nameNul: string
     instructionNul: string

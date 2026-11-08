@@ -34,6 +34,7 @@ import { useMemo } from 'react'
 
 import { CANONICAL_GROUP_LOCALES } from './canonical-group-locales'
 import { CROSS_GATEWAY_GROUP_LOCALES } from './cross-gateway-locales'
+import { CRON_HISTORY_LOCALES } from './cron-history-locales'
 import { bind, type Bound } from './i18n-bind'
 import { type BotsMessages } from './i18n-messages'
 import { getPluginCtx } from './shared'
@@ -416,6 +417,7 @@ const en: BotsMessages = {
     needsHttps: 'Bot screens need a secure connection. Open the Webapp over HTTPS, or through an SSH tunnel to 127.0.0.1, to view this one.'
   },
   cron: {
+    ...CRON_HISTORY_LOCALES['en'],
     untitled: 'Untitled job',
     nameNul: 'Job name cannot contain NUL (U+0000).',
     instructionNul: 'Job instruction cannot contain NUL (U+0000).',
@@ -863,6 +865,7 @@ const ja: BotsMessages = {
     needsHttps: 'ボットの画面には安全な接続が必要です。表示するには、Webapp を HTTPS か 127.0.0.1 への SSH トンネル経由で開いてください。'
   },
   cron: {
+    ...CRON_HISTORY_LOCALES['ja'],
     untitled: '無題のジョブ',
     nameNul: 'ジョブ名に NUL (U+0000) は使用できません。',
     instructionNul: 'ジョブの指示に NUL (U+0000) は使用できません。',
@@ -1293,6 +1296,7 @@ const zh: BotsMessages = {
     needsHttps: '机器人屏幕需要安全连接。请通过 HTTPS 或到 127.0.0.1 的 SSH 隧道打开 Webapp 后查看。'
   },
   cron: {
+    ...CRON_HISTORY_LOCALES['zh'],
     untitled: '未命名任务',
     nameNul: '任务名称不能包含 NUL (U+0000)。',
     instructionNul: '任务指令不能包含 NUL (U+0000)。',
@@ -1723,6 +1727,7 @@ const zhHant: BotsMessages = {
     needsHttps: '機器人螢幕需要安全連線。請透過 HTTPS 或到 127.0.0.1 的 SSH 通道開啟 Webapp 後檢視。'
   },
   cron: {
+    ...CRON_HISTORY_LOCALES['zh-hant'],
     untitled: '未命名工作',
     nameNul: '工作名稱不能包含 NUL (U+0000)。',
     instructionNul: '工作指令不能包含 NUL (U+0000)。',
@@ -1794,11 +1799,31 @@ export const BOTS_LOCALES: PluginLocaleBundles = {
   ja,
   zh,
   'zh-hant': zhHant,
-  ar: { canonical: CANONICAL_GROUP_LOCALES.ar, crossGateway: CROSS_GATEWAY_GROUP_LOCALES.ar },
-  ru: { canonical: CANONICAL_GROUP_LOCALES.ru, crossGateway: CROSS_GATEWAY_GROUP_LOCALES.ru },
-  fr: { canonical: CANONICAL_GROUP_LOCALES.fr, crossGateway: CROSS_GATEWAY_GROUP_LOCALES.fr },
-  de: { canonical: CANONICAL_GROUP_LOCALES.de, crossGateway: CROSS_GATEWAY_GROUP_LOCALES.de },
-  es: { canonical: CANONICAL_GROUP_LOCALES.es, crossGateway: CROSS_GATEWAY_GROUP_LOCALES.es }
+  ar: {
+    canonical: CANONICAL_GROUP_LOCALES.ar,
+    crossGateway: CROSS_GATEWAY_GROUP_LOCALES.ar,
+    cron: CRON_HISTORY_LOCALES.ar
+  },
+  ru: {
+    canonical: CANONICAL_GROUP_LOCALES.ru,
+    crossGateway: CROSS_GATEWAY_GROUP_LOCALES.ru,
+    cron: CRON_HISTORY_LOCALES.ru
+  },
+  fr: {
+    canonical: CANONICAL_GROUP_LOCALES.fr,
+    crossGateway: CROSS_GATEWAY_GROUP_LOCALES.fr,
+    cron: CRON_HISTORY_LOCALES.fr
+  },
+  de: {
+    canonical: CANONICAL_GROUP_LOCALES.de,
+    crossGateway: CROSS_GATEWAY_GROUP_LOCALES.de,
+    cron: CRON_HISTORY_LOCALES.de
+  },
+  es: {
+    canonical: CANONICAL_GROUP_LOCALES.es,
+    crossGateway: CROSS_GATEWAY_GROUP_LOCALES.es,
+    cron: CRON_HISTORY_LOCALES.es
+  }
 }
 
 export type BotsText = Bound<BotsMessages>
