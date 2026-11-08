@@ -3,6 +3,7 @@ import type * as HermesSdk from '@hermes/plugin-sdk'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { BotCronRun as Run } from './cron-history'
 import { BOTS_LOCALES } from './i18n'
 import { translateBots } from './i18n-test-helper'
 import type { RosterRow } from './types'
@@ -34,7 +35,7 @@ vi.mock('./bot-state', () => ({ saveSelectedRosterBot: vi.fn() }))
 
 const { BotCronHistory, cronHistoryOwnerKey, loadBotCronHistory, openBotCronHistoryRun } =
   await import('./cron-history')
-type Run = import('./cron-history').BotCronRun
+
 const bot: RosterRow = {
   name: 'radio',
   sourceScoped: true,
