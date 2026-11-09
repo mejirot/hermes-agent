@@ -110,6 +110,12 @@ def local_docker_command(env: dict) -> list[str]:
     return ["docker", "--host", host]
 
 
+def require_source_environment() -> None:
+    for directory in (ROOT, ROOT / "apps/desktop"):
+        if any(path.name not in (".env.example", ".envrc") for path in directory.glob(".env*")):
+            raise ValueError("Use a dedicated build clone without local dotenv files")
+
+
 def require_source(commit: str) -> dict:
     if not re.fullmatch(r"[0-9a-f]{40}", commit) or git("rev-parse", "HEAD") != commit:
         raise ValueError("Checkout HEAD must equal the requested full commit")
@@ -120,9 +126,7 @@ def require_source(commit: str) -> dict:
     if any(name in ("hermes_bootstrap.py", "Dockerfile") or name.startswith(("pm/", "docker/"))
            for name in changed):
         raise ValueError("The feature must retain the original PM, bootstrap and Docker runtime")
-    for directory in (ROOT, ROOT / "apps/desktop"):
-        if any(path.name != ".env.example" for path in directory.glob(".env*")):
-            raise ValueError("Use a dedicated build clone without local dotenv files")
+    require_source_environment()
     hashes = {}
     for name in PROTECTED:
         baseline = subprocess.check_output(["git", "show", f"{UPSTREAM_COMMIT}:{name}"], cwd=ROOT)

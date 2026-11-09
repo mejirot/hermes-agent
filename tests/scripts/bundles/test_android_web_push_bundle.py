@@ -19,6 +19,28 @@ def load(name):
     return module
 
 
+def test_source_environment_accepts_upstream_examples_and_direnv(tmp_path, monkeypatch):
+    build = load("build")
+    monkeypatch.setattr(build, "ROOT", tmp_path)
+    for directory in (tmp_path, tmp_path / "apps/desktop"):
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / ".env.example").write_text("EXAMPLE=value\n")
+        (directory / ".envrc").write_text("source ./activate\n")
+    build.require_source_environment()
+
+
+@pytest.mark.parametrize("directory", [".", "apps/desktop"])
+@pytest.mark.parametrize("name", [".env", ".env.local", ".env.production", ".envrc.local"])
+def test_source_environment_refuses_local_settings(tmp_path, monkeypatch, directory, name):
+    build = load("build")
+    monkeypatch.setattr(build, "ROOT", tmp_path)
+    target = tmp_path / directory
+    target.mkdir(parents=True, exist_ok=True)
+    (target / name).write_text("PRIVATE=value\n")
+    with pytest.raises(ValueError, match="without local dotenv files"):
+        build.require_source_environment()
+
+
 @pytest.mark.parametrize("name,kind", [("webapp/../escape", "file"), ("/webapp/absolute", "file"),
                                      ("webapp/assets/link", "symlink"),
                                      ("other/index.html", "file"), ("webapp/a", "duplicate")])
