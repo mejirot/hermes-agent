@@ -1,0 +1,24 @@
+[project]
+name = "hermes-web-push-sender"
+version = "0.1.0"
+description = "Isolated Android Web Push transport for the Hermes image"
+requires-python = ">=3.14,<3.15"
+dependencies = ["pywebpush==2.5.0"]
+
+[tool.uv]
+package = false
+environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
+build-constraint-dependencies = [
+  { requirement = "setuptools==84.1.0", hashes = ["sha256:5231689c6ac8156cd155cfb98c3fd6fb252c3e7e9bd3d78b64d3c55f132624c9", "sha256:23657205b63d4d31395ab917815247f694aafad28cd21316bf5fd45a51048ea0"] },
+]
+require-build-hashes = true
+# Keep this component independent of Hermes's dependency selection. These
+# constraints make its complete runtime graph explicit and independently reviewable.
+constraint-dependencies = [
+  "aiohappyeyeballs==2.7.1", "aiohttp==3.14.5", "aiosignal==1.4.0",
+  "attrs==26.1.0", "certifi==2026.10.19", "cffi==2.1.1",
+  "charset-normalizer==3.5.2", "cryptography==50.0.2", "frozenlist==1.8.0",
+  "http-ece==1.2.1", "idna==3.20", "multidict==6.9.1", "propcache==0.5.4",
+  "py-vapid==1.9.6", "pycparser==3.11", "requests==2.34.2",
+  "urllib3==2.8.0", "yarl==1.25.1",
+]
