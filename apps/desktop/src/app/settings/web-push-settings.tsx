@@ -3,8 +3,8 @@ import { useEffect } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { useWebPushCopy } from '@/i18n/web-push'
-import { WEB_PUSH_KINDS } from '@/lib/web-push'
 import { Bell } from '@/lib/icons'
+import { WEB_PUSH_KINDS } from '@/lib/web-push'
 import { notify } from '@/store/notifications'
 import {
   $webPushDevice, disableWebPush, enableWebPush, refreshWebPushStatus,
@@ -32,14 +32,13 @@ export function WebPushSettings() {
   return <section aria-label={copy.title} className="mt-5">
     <SectionHeading icon={Bell} title={copy.title} />
     <p className="mb-2 text-xs text-(--ui-text-tertiary)">{copy.description}</p>
-    <ListRow title={copy.title} description={device.subscribed && device.state === 'ready' ? copy.states.subscribed : copy.states[device.state]}
-      action={<div className="flex flex-wrap gap-2">
+    <ListRow action={<div className="flex flex-wrap gap-2">
         {actionable && <Button disabled={device.busy || device.state === 'loading' || (!device.subscribed && device.state === 'unavailable')}
           onClick={() => void (device.subscribed ? disable() : enableWebPush())} size="sm" variant="outline">
           {device.subscribed ? copy.disable : copy.enable}
         </Button>}
         {actionable && <Button disabled={device.busy} onClick={() => void refreshWebPushStatus()} size="sm" variant="text">{copy.retry}</Button>}
-      </div>} />
+      </div>} description={device.subscribed && device.state === 'ready' ? copy.states.subscribed : copy.states[device.state]} title={copy.title} />
     {WEB_PUSH_KINDS.map(kind => <ToggleRow checked={status?.kinds[kind] ?? true}
       disabled={!device.subscribed || device.busy} key={kind} label={copy.kinds[kind]}
       onChange={enabled => status && void setWebPushPreferences({ kinds: { ...status.kinds, [kind]: enabled } })} />)}

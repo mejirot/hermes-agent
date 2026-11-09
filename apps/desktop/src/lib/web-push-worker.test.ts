@@ -1,5 +1,7 @@
+// @vitest-environment node
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
+
 import { describe, expect, it, vi } from 'vitest'
 
 const source = readFileSync(new URL('../../public/sw.js', import.meta.url), 'utf8')
@@ -10,6 +12,7 @@ function worker() {
   const openWindow = vi.fn(async () => undefined)
   const notifications = [{ tag: 'hermes:push:seen', close: vi.fn() }, { tag: 'hermes:push:other', close: vi.fn() }]
   const client = { url: 'https://hermes.example/', postMessage: vi.fn(), navigate: vi.fn(async () => undefined), focus: vi.fn(async () => undefined) }
+
   const self = {
     location: { origin: 'https://hermes.example' },
     registration: { scope: 'https://hermes.example/', showNotification, getNotifications: async () => notifications },
@@ -17,12 +20,15 @@ function worker() {
     skipWaiting: async () => undefined,
     addEventListener: (name: string, handler: (event: unknown) => void) => { handlers[name] = handler }
   }
+
   vm.runInNewContext(source, { self, URL, Set })
+
   const dispatch = async (name: string, event: Record<string, unknown>) => {
     let completion: Promise<unknown> | undefined
     handlers[name]({ ...event, waitUntil: (pending: Promise<unknown>) => { completion = pending } })
     await completion
   }
+
   return { dispatch, handlers, showNotification, client, openWindow, notifications }
 }
 

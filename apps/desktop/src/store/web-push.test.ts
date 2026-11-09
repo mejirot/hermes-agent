@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as WebPushModule from '@/lib/web-push'
+
 const api = vi.hoisted(() => ({ request: vi.fn(), register: vi.fn(), active: vi.fn(), coverage: vi.fn(), capability: vi.fn(), permission: vi.fn() }))
 vi.mock('@/lib/browser-notifications', () => ({ browserNotificationPermission: () => api.permission() }))
 vi.mock('@/lib/web-push', async importOriginal => ({
-  ...await importOriginal<typeof import('@/lib/web-push')>(),
+  ...await importOriginal<typeof WebPushModule>(),
   webPushRequest: api.request, registerWebPushWorker: api.register, activeWebPushWorker: api.active,
   setWebPushCoverage: api.coverage, webPushCapability: api.capability
 }))

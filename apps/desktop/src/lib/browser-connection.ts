@@ -13,8 +13,8 @@ import {
   ticketedWebsocketUrl
 } from '@/lib/browser-transport'
 import { browserLaunchProfileOrDefault } from '@/lib/platform'
-import { withTimeout } from '@/lib/with-timeout'
 import { clearLocalWebPush } from '@/lib/web-push'
+import { withTimeout } from '@/lib/with-timeout'
 
 /** The serving origin is the only connection a browser-hosted Desktop has. */
 export function requireBrowserConnection(connectionId?: null | string): void {

@@ -10,8 +10,8 @@ vi.mock('@/store/session-states', () => ({ $sessionTiles: { get: () => [] }, $se
 vi.mock('@/store/prompts', () => ({ sessionApprovalRequests: () => ({ get: () => state.approvals }) }))
 vi.mock('@/store/clarify', () => ({ $clarifyRequests: { get: () => state.clarify } }))
 
-import { webPushEventWasObserved } from './web-push-observation'
 import type { WebPushEvent } from './web-push'
+import { webPushEventWasObserved } from './web-push-observation'
 
 const event: WebPushEvent = { id: 'a', title: 'Reply', body: 'same words', kind: 'reply', created_at: 1,
   target: { profile: 'writer', session_id: 'saved', message_id: '42' } }

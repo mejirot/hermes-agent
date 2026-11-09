@@ -297,10 +297,10 @@ export function ClarifyToolPending({
       aria-busy={ready || undelivered ? undefined : 'true'}
       className="my-1.5 grid gap-4"
       data-clarify-batch={questions.length}
-      data-push-prompt-id={ready ? request?.requestId : undefined}
-      data-push-runtime-id={ready ? request?.sessionId ?? undefined : undefined}
       data-clarify-batch-preview={ready ? undefined : ''}
       data-clarify-choices={ready ? questions[keys.activeQuestion]?.choices?.length || undefined : undefined}
+      data-push-prompt-id={ready ? request?.requestId : undefined}
+      data-push-runtime-id={ready ? request?.sessionId ?? undefined : undefined}
       onKeyDownCapture={handleClarifySubmitShortcut}
       onSubmit={handleSubmit}
       ref={formRef}

@@ -4,6 +4,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 const actions = vi.hoisted(() => ({ enable: vi.fn(), disable: vi.fn(), refresh: vi.fn(), preferences: vi.fn(), test: vi.fn() }))
 vi.mock('@/store/web-push', async () => {
   const { atom } = await import('nanostores')
+
   return {
     $webPushDevice: atom({ state: 'ready', subscribed: false, busy: false, status: null }),
     enableWebPush: actions.enable, disableWebPush: actions.disable, refreshWebPushStatus: actions.refresh,
@@ -26,7 +27,7 @@ beforeEach(() => {
 it('asks for opt-in from the device button rather than on settings mount', () => {
   render(<WebPushSettings />)
   expect(actions.enable).not.toHaveBeenCalled()
-  expect(screen.getByRole('button', { name: 'Send push test' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Send push test' })).toHaveProperty('disabled', true)
   fireEvent.click(screen.getByRole('button', { name: 'Enable on this device' }))
   expect(actions.enable).toHaveBeenCalledOnce()
 })
@@ -34,10 +35,12 @@ it('asks for opt-in from the device button rather than on settings mount', () =>
 it('persists the preview switch and exposes exactly the four server event preferences', () => {
   $webPushDevice.set({ state: 'ready', subscribed: true, busy: false, status })
   render(<WebPushSettings />)
+
   for (const label of ['Scheduled job results', 'Bot and Group replies in Hermes', 'Approval needed', 'Question needs an answer']) {
-    expect(screen.getByRole('switch', { name: label })).toBeEnabled()
+    expect(screen.getByRole('switch', { name: label })).toHaveProperty('disabled', false)
   }
+
   fireEvent.click(screen.getByRole('switch', { name: 'Show a short preview' }))
   expect(actions.preferences).toHaveBeenCalledWith({ preview: false })
-  expect(screen.getByRole('button', { name: 'Disable on this device' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Disable on this device' })).toHaveProperty('disabled', false)
 })

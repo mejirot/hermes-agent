@@ -310,9 +310,9 @@ const AssistantMessageBody: FC<AssistantMessageProps & { collapsedNotice?: null 
         collapsedNotice && 'pb-(--conversation-turn-gap)'
       )}
       data-approval-activity-only={approval && activityOnly ? '' : undefined}
-      data-role="assistant"
       data-push-message-id={hasVisibleText && !isInterim ? messageId : undefined}
       data-push-runtime-id={sessionId ?? undefined}
+      data-role="assistant"
       data-slot="aui_assistant-message-root"
       // Collapsed inter-agent rows never carried the tapback listener; keeping
       // that exact truth table means gating it on the notice rather than on

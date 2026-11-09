@@ -3,8 +3,8 @@ import { atom } from 'nanostores'
 import { browserNotificationPermission } from '@/lib/browser-notifications'
 import {
   activeWebPushWorker, applicationServerKey, DEFAULT_WEB_PUSH_KINDS, registerWebPushWorker,
-  setWebPushCoverage, WebPushApiError, webPushCapability, webPushRequest,
-  type WebPushEvent, type WebPushKinds, type WebPushStatus
+  setWebPushCoverage, WebPushApiError, webPushCapability, type WebPushEvent,
+  type WebPushKinds, webPushRequest, type WebPushStatus
 } from '@/lib/web-push'
 
 export type WebPushState = 'loading' | 'ready' | 'unsupported' | 'insecure' | 'denied' | 'unavailable' | 'error' | 'signed-out'

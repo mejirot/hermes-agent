@@ -4,8 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const api = vi.hoisted(() => ({ getSession: vi.fn(), request: vi.fn(), openSession: vi.fn(), hint: vi.fn(),
   groups: vi.fn(), registerGroup: vi.fn(), openGroup: vi.fn(), tiles: [] as unknown[] }))
+
 vi.mock('@/hermes', () => ({ getSession: api.getSession }))
-vi.mock('@/lib/web-push', async importOriginal => ({ ...await importOriginal<typeof import('@/lib/web-push')>(), webPushRequest: api.request }))
+vi.mock('@/lib/web-push', async importOriginal => ({ ...await importOriginal<typeof WebPush>(), webPushRequest: api.request }))
 vi.mock('@/store/session', () => ({ $selectedStoredSessionId: { get: () => 'already-open' }, setSessionOwnerHint: api.hint }))
 vi.mock('@/store/session-states', () => ({ $sessionTiles: { get: () => api.tiles }, $botChatScopes: { get: () => ({}) } }))
 vi.mock('@/sdk', () => ({ host: { openSession: api.openSession } }))
@@ -14,12 +15,14 @@ vi.mock('@/plugins/hermes-bots/canonical-groups', () => ({ discoverCanonicalGrou
 vi.mock('@/plugins/hermes-bots/canonical-group-registry', () => ({ registerCanonicalGroup: api.registerGroup }))
 vi.mock('@/plugins/hermes-bots/group-chat-view', () => ({ openGroupChat: api.openGroup }))
 
+import type * as WebPush from '@/lib/web-push'
 import type { WebPushEvent } from '@/lib/web-push'
 
 import { openWebPushTarget, PushNotificationOpenView } from './push-notification-open'
 
 const event: WebPushEvent = { id: 'abc', kind: 'reply', title: 'Response ready', body: 'Saved reply', created_at: 1,
   target: { profile: 'writer', session_id: 'saved' } }
+
 const owner = { connectionId: 'local', profile: 'writer', targetProfile: 'writer', mode: 'local' as const }
 const originalBridge = window.hermesDesktop
 
@@ -61,7 +64,11 @@ describe('notification target opening', () => {
 
   it('does not focus a target when navigation overtakes a saved-session read', async () => {
     let current = true
-    api.getSession.mockImplementation(async () => { current = false; return { id: 'saved' } })
+    api.getSession.mockImplementation(async () => {
+      current = false
+
+      return { id: 'saved' }
+    })
     const navigate = vi.fn()
     expect(await openWebPushTarget(event, navigate, () => current)).toBe(false)
     expect(api.openSession).not.toHaveBeenCalled()
@@ -70,9 +77,9 @@ describe('notification target opening', () => {
 
   it('keeps a no-agent cron notification readable without running the job', async () => {
     api.request.mockResolvedValue({ ...event, kind: 'cron', target: { profile: 'writer', job_id: 'job-one', execution_id: 'execution-one' } })
-    render(<MemoryRouter initialEntries={['/push/open/abc']}><Routes><Route path="/push/open/:eventId" element={<PushNotificationOpenView />} /></Routes></MemoryRouter>)
-    await waitFor(() => expect(screen.getByText('execution-one')).toBeInTheDocument())
-    expect(screen.getByText(/This result has no saved conversation/)).toBeInTheDocument()
+    render(<MemoryRouter initialEntries={['/push/open/abc']}><Routes><Route element={<PushNotificationOpenView />} path="/push/open/:eventId" /></Routes></MemoryRouter>)
+    await waitFor(() => expect(screen.getByText('execution-one')).toHaveProperty('isConnected', true))
+    expect(screen.getByText(/This result has no saved conversation/)).toHaveProperty('isConnected', true)
     expect(api.getSession).not.toHaveBeenCalled()
     expect(api.openSession).not.toHaveBeenCalled()
   })

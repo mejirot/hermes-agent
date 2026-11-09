@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { getSession } from '@/hermes'
 import { useWebPushCopy } from '@/i18n/web-push'
 import { browserPageBasePath } from '@/lib/browser-settings'
-import { WebPushApiError, webPushRequest, type WebPushEvent } from '@/lib/web-push'
+import { WebPushApiError, type WebPushEvent, webPushRequest } from '@/lib/web-push'
 import { $selectedStoredSessionId } from '@/store/session'
 import { $botChatScopes, $sessionTiles } from '@/store/session-states'
 

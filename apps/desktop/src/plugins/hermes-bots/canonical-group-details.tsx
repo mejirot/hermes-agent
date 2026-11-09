@@ -134,8 +134,8 @@ export function CanonicalPendingCard({ action, avatar, busy, labels, methods, na
 
   const choices = Array.isArray(action.approval?.choices) ? action.approval.choices : []
 
-  return <div className="mx-3 my-1 flex items-start gap-2.5 rounded-xl bg-(--chrome-action-hover) px-3 py-2" data-member-id={action.member_id} data-pending-action={action.kind} data-task-id={action.task_id}
-    data-push-generation={action.execution_generation} data-push-prompt-id={action.request_id ?? action.approval?.request_id ?? action.approval?.prompt_id}>
+  return <div className="mx-3 my-1 flex items-start gap-2.5 rounded-xl bg-(--chrome-action-hover) px-3 py-2" data-member-id={action.member_id} data-pending-action={action.kind}
+    data-push-generation={action.execution_generation} data-push-prompt-id={action.request_id ?? action.approval?.request_id ?? action.approval?.prompt_id} data-task-id={action.task_id}>
     <div className="mt-0.5 shrink-0">{avatar}</div>
     <div className="grid min-w-0 flex-1 gap-1.5">
       <p className="text-xs text-foreground">{copy ? fill(labels[copy], { name }) : name}</p>

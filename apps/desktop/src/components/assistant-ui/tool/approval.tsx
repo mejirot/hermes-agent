@@ -328,9 +328,9 @@ const ApprovalCard: FC<ApprovalCardProps> = ({ request, total, position, stack }
     <article
       aria-hidden={!present || undefined}
       className="min-w-0"
-      data-request-id={request.requestId}
       data-push-prompt-id={request.serverRequestId ?? request.requestId}
       data-push-runtime-id={request.sessionId ?? undefined}
+      data-request-id={request.requestId}
       data-slot="tool-approval-card"
       inert={!present}
       onPointerDownCapture={rememberFocusOrigin}
