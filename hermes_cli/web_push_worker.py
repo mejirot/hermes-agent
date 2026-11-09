@@ -14,22 +14,49 @@ import sqlite3
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+import re
+from urllib.parse import urlsplit
 
 from hermes_cli.web_push_store import PushStore
 
 _log = logging.getLogger(__name__)
 SENDER_PYTHON = Path("/opt/hermes-web-push/bin/python")
 SENDER_SCRIPT = Path("/opt/hermes-web-push/send.py")
-VAPID_SUBJECT = "https://mejilab.com"
 
 
-def configured(home: Path) -> bool:
+def valid_vapid_subject(value: object) -> bool:
+    """Mirror the sealed sender's contact syntax without importing its dependencies."""
+    if not isinstance(value, str) or not 1 <= len(value) <= 2048:
+        return False
+    if any(ord(char) <= 32 or ord(char) >= 127 for char in value):
+        return False
+    host = r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    if value.startswith("mailto:"):
+        return re.fullmatch(r"mailto:[A-Za-z0-9.!$%&'*+_=^`{|}~-]+@" + host, value) is not None
+    try:
+        url = urlsplit(value)
+        return (value == "https://" + url.netloc and url.username is None and url.password is None
+                and not url.netloc.endswith(":")
+                and re.fullmatch(host, url.hostname or "") is not None
+                and (url.port is None or 1 <= url.port <= 65535))
+    except ValueError:
+        return False
+
+
+def configured_subject(home: Path) -> str | None:
     from hermes_cli.config_effective import load_user_config_effective
 
     cfg = load_user_config_effective(Path(home) / "config.yaml", fail_closed=True)
     webapp = cfg.get("webapp", {})
     block = webapp.get("push", {}) if isinstance(webapp, dict) else {}
-    return isinstance(block, dict) and block.get("enabled") is True
+    if not isinstance(block, dict) or block.get("enabled") is not True:
+        return None
+    subject = block.get("vapid_subject")
+    return subject if valid_vapid_subject(subject) else None
+
+
+def configured(home: Path) -> bool:
+    return configured_subject(home) is not None
 
 
 def source_databases():
@@ -80,7 +107,7 @@ async def run_sender(request: dict) -> dict:
         if not isinstance(result, dict) or type(result.get("ok")) is not bool:
             return {"ok": False, "status": None, "error_code": "sender_protocol"}
         return result
-    except (TimeoutError, asyncio.TimeoutError):
+    except TimeoutError:
         return {"ok": False, "status": None, "error_code": "sender_timeout"}
     except (ValueError, UnicodeError, BrokenPipeError, ConnectionResetError):
         return {"ok": False, "status": None, "error_code": "sender_protocol"}
@@ -135,6 +162,9 @@ class PushRuntime:
     async def deliver(self, sources: set[Path]):
         from hermes_cli import browser_credential
 
+        subject = await asyncio.to_thread(configured_subject, self.home)
+        if subject is None:
+            return False
         generation = browser_credential.generation()
         claimed = await asyncio.to_thread(self.store.claim, generation=generation)
         if claimed is None:
@@ -153,7 +183,7 @@ class PushRuntime:
                                "approval": "承認が必要です。", "input": "入力を待っています。"}[event["kind"]]
         ttl = min(86400, max(1, math.ceil(event["expires_at"] - time.time())))
         result = await run_sender({"subscription": device["subscription"], "payload": payload,
-                                   "vapid_private_key_path": str(self.key_path), "vapid_subject": VAPID_SUBJECT, "ttl": ttl})
+                                   "vapid_private_key_path": str(self.key_path), "vapid_subject": subject, "ttl": ttl})
         await asyncio.to_thread(self.store.settle, device["id"], event["id"], result=result, attempts=delivery["attempts"])
         return True
 

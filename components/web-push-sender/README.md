@@ -21,16 +21,35 @@ Send exactly one JSON document on stdin, then close stdin:
   },
   "payload": {"id": "event-id", "title": "Hermes", "body": "A new update is available"},
   "vapid_private_key_path": "/opt/data/web-push/vapid-private.pem",
-  "vapid_subject": "https://mejilab.com",
+  "vapid_subject": "https://example.com",
   "ttl": 300
 }
 ```
 
 The private key must be an absolute, regular file, with no group/other access;
 symlinks are refused. No secret belongs in argv, image layers or source control.
-The VAPID subject identifies the operator's contact URI. The pinned library's
-strict HTTPS validation requires a host-only URI, so the fixed subject has no
-path. It does not configure the PWA origin or the subscription endpoint.
+The VAPID subject identifies the operator's contact URI. Configure the operator's
+own contact in the serving Webapp home's private `config.yaml`; the worker passes
+that value to the sender. For example, replace this placeholder before use:
+
+```yaml
+webapp:
+  push:
+    enabled: true
+    vapid_subject: "https://operator.example"
+```
+
+Use either a single `mailto:` contact, such as `mailto:push@operator.example`, or
+an HTTPS origin with no path, query or fragment. The pinned library's strict HTTPS
+validation requires a host-only URI. This setting is a contact address; it does
+not configure the PWA origin or the subscription endpoint. There is no default
+contact: an absent or invalid value leaves Push unavailable while the Webapp
+remains usable.
+
+When upgrading an existing deployment, set the operator's contact in the private
+configuration before deploying the new image, then restart the serving Webapp.
+Keep the existing persistent data, VAPID key and browser subscriptions. Changing
+only this contact URI does not require key rotation or browser re-enrollment.
 The payload is limited to 3,072 UTF-8 bytes and the whole request to 16,384 bytes.
 TTL is an integer from zero through 2,419,200 seconds.
 

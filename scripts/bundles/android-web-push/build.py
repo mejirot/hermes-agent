@@ -6,7 +6,7 @@ unexecuted gates cannot produce release.json. No production data is consumed.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import gzip
 import hashlib
 import json
@@ -54,13 +54,15 @@ def digest(path: Path) -> str:
 
 
 def git(*args: str) -> str:
-    return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+    return subprocess.check_output(
+        ["git", *args], cwd=ROOT, text=True, encoding="utf-8", errors="replace", timeout=30).strip()
 
 
 def require_host() -> None:
     release = Path("/proc/sys/kernel/osrelease")
     if (sys.platform != "linux" or not release.is_file()
-            or not re.search(r"microsoft.*(?:standard|WSL2)|WSL2", release.read_text(), re.I)):
+            or not re.search(r"microsoft.*(?:standard|WSL2)|WSL2",
+                             release.read_text(encoding="utf-8-sig"), re.IGNORECASE)):
         raise ValueError("Run this build in WSL2 on the Windows management PC")
     if sys.version_info[:2] != (3, 14) or platform.machine() != "x86_64":
         raise ValueError("The build host needs CPython 3.14 on Linux x86_64")
@@ -93,11 +95,12 @@ def local_docker_command(env: dict) -> list[str]:
     override = env.get("DOCKER_HOST")
     if override:
         local_socket_endpoint(override)
-    context = subprocess.check_output(["docker", "context", "show"], env=env, text=True).strip()
+    context = subprocess.check_output(
+        ["docker", "context", "show"], env=env, text=True, encoding="utf-8", errors="replace", timeout=30).strip()
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", context):
         raise ValueError("Invalid selected Docker context")
     selected = json.loads(subprocess.check_output(
-        ["docker", "context", "inspect", context], env=env, text=True))
+        ["docker", "context", "inspect", context], env=env, text=True, encoding="utf-8", errors="replace", timeout=30))
     if not isinstance(selected, list) or len(selected) != 1:
         raise ValueError("Cannot determine the selected Docker endpoint")
     record = selected[0]
@@ -238,14 +241,15 @@ class Gates:
 
     def run(self, name: str, args: list[str], *, stdin: str | None = None) -> None:
         log = self.output / "logs" / f"{name}.log"
-        started = datetime.now(timezone.utc).isoformat()
+        started = datetime.now(UTC).isoformat()
         with log.open("w", encoding="utf-8") as stream:
             completed = subprocess.run(args, cwd=ROOT, env=self.env, input=stdin,
-                                       text=True, stdout=stream, stderr=subprocess.STDOUT)
+                                       text=True, encoding="utf-8", errors="replace", check=False,
+                                       stdout=stream, stderr=subprocess.STDOUT)
         self.results.append({"name": name, "returncode": completed.returncode,
-                             "started_at": started, "finished_at": datetime.now(timezone.utc).isoformat(),
+                             "started_at": started, "finished_at": datetime.now(UTC).isoformat(),
                              "log_sha256": digest(log)})
-        (self.output / "build-gates.json").write_text(json.dumps(self.results, indent=2) + "\n")
+        (self.output / "build-gates.json").write_text(json.dumps(self.results, indent=2) + "\n", encoding="utf-8")
         if completed.returncode:
             raise RuntimeError(f"Gate failed: {name}; inspect {log}")
         print(f"PASS {name}", flush=True)
@@ -256,7 +260,7 @@ def prepare_official_image(gates: Gates, docker: list[str]) -> dict:
     # exact digest first so inspect and the following build share a known baseline.
     gates.run("official-image-pull", [*docker, "image", "pull", "--platform=linux/amd64", BASE_IMAGE])
     gates.run("official-image-inspect", [*docker, "image", "inspect", BASE_IMAGE])
-    raw = (gates.output / "logs/official-image-inspect.log").read_text(encoding="utf-8")
+    raw = (gates.output / "logs/official-image-inspect.log").read_text(encoding="utf-8-sig")
     records = json.loads(raw)
     if not isinstance(records, list) or len(records) != 1:
         raise ValueError("Official image inspection was incomplete")
@@ -308,11 +312,12 @@ def build(args) -> None:
     gates = Gates(output, env)
     gates.run("node-toolchain", ["node", "--input-type=module", "-e",
         "if(process.version!=='v26.12.1'||process.platform!=='linux'||process.arch!=='x64')throw Error('Need Linux Node 26.12.1 x64')"])
-    npm = subprocess.check_output(["npm", "--version"], env=env, text=True).strip()
+    npm = subprocess.check_output(
+        ["npm", "--version"], env=env, text=True, encoding="utf-8", errors="replace", timeout=30).strip()
     if npm != "12.0.2":
         raise ValueError("Need npm 12.0.2")
     gates.run("local-docker-daemon", [*docker, "info", "--format", "{{json .}}"])
-    docker_info = json.loads((output / "logs/local-docker-daemon.log").read_text(encoding="utf-8"))
+    docker_info = json.loads((output / "logs/local-docker-daemon.log").read_text(encoding="utf-8-sig"))
     if docker_info.get("OSType") != "linux" or docker_info.get("Architecture") not in ("x86_64", "amd64"):
         raise ValueError("Docker Engine must target Linux amd64")
     official = prepare_official_image(gates, docker)
@@ -343,20 +348,22 @@ if(!outputIntact(dist,'webapp') || receipt.node!=='26.12.1' ||
                "--build-arg", f"FORK_COMMIT={args.commit}"]
     gates.run("python-sender-and-backend-tests", [*command, "--target", "tests", str(context)])
     gates.run("image-build", [*command, "--target", "runtime", "--tag", image_tag, str(context)])
-    inspect = json.loads(subprocess.check_output([*docker, "image", "inspect", image_tag], env=env, text=True))[0]
+    inspect = json.loads(subprocess.check_output([*docker, "image", "inspect", image_tag], env=env,
+                                                text=True, encoding="utf-8", errors="replace", timeout=30))[0]
     for field in ("Entrypoint", "Cmd", "User", "WorkingDir"):
         if inspect["Config"].get(field) != official["Config"].get(field):
             raise ValueError(f"Official runtime contract changed: {field}")
     if inspect.get("Architecture") != "amd64" or inspect.get("Os") != "linux":
         raise ValueError("Built image has the wrong platform")
-    container = subprocess.check_output([*docker, "container", "create", "--network=none", image_tag], env=env, text=True).strip()
+    container = subprocess.check_output([*docker, "container", "create", "--network=none", image_tag], env=env,
+                                        text=True, encoding="utf-8", errors="replace", timeout=30).strip()
     try:
         gates.run("sender-receipt", [*docker, "container", "cp",
                   f"{container}:/opt/hermes-web-push/sender-build.json", str(output / "sender-build.json")])
     finally:
         subprocess.run([*docker, "container", "rm", "--volumes", container], env=env,
                        check=True, stdout=subprocess.DEVNULL)
-    sender_receipt = json.loads((output / "sender-build.json").read_text(encoding="utf-8"))
+    sender_receipt = json.loads((output / "sender-build.json").read_text(encoding="utf-8-sig"))
     if (sender_receipt.get("lock_sha256") != inputs["sender_lock_sha256"]
             or sender_receipt.get("script_sha256") != digest(ROOT / "components/web-push-sender/send.py")):
         raise ValueError("Prepared sender receipt does not match the canonical source")
@@ -374,7 +381,7 @@ if(!outputIntact(dist,'webapp') || receipt.node!=='26.12.1' ||
     (output / "release.json").write_text(json.dumps(release, indent=2) + "\n", encoding="utf-8")
     (output / "SHA256SUMS").write_text("".join(f"{digest(output/name)}  {name}\n"
                                                 for name in ("image.tar", "webapp.tar.gz", "release.json",
-                                                             "sender-build.json", "official-image.json")))
+                                                             "sender-build.json", "official-image.json")), encoding="utf-8")
     print(f"Candidate artifacts: {output}. Production startup acceptance is still required.")
 
 

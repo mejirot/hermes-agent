@@ -40,12 +40,12 @@ def verify_inputs(root: Path, metadata: dict, commit: str) -> None:
 
 
 def assemble_image(root: Path, sender: Path, commit: str) -> None:
-    metadata = json.loads((sender / "source-inputs.json").read_text(encoding="utf-8"))
+    metadata = json.loads((sender / "source-inputs.json").read_text(encoding="utf-8-sig"))
     verify_inputs(root, metadata, commit)
     if file_hash(sender / "uv.lock") != metadata["sender_lock_sha256"]:
         raise ValueError("prepared sender uses a different lock")
     stamp_path = root / "install-stamp.json"
-    stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
+    stamp = json.loads(stamp_path.read_text(encoding="utf-8-sig"))
     if (stamp.get("commit") != commit or stamp.get("distribution") != "docker"
             or stamp.get("updateMechanism") != "external" or stamp.get("dirty") is not False):
         raise ValueError("fork image stamp is incomplete")

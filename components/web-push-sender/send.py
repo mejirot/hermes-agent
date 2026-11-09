@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 import ipaddress
 import json
@@ -16,13 +16,13 @@ import logging
 import math
 import os
 from pathlib import Path
+import re
 import socket
 import stat
 import sys
 from urllib.parse import urlsplit
 
 FCM_HOST = "fcm.googleapis.com"
-VAPID_SUBJECT = "https://mejilab.com"
 TIMEOUT = 10
 MAX_INPUT = 16384
 MAX_PAYLOAD = 3072
@@ -62,6 +62,25 @@ def _decoded_key(value: object, length: int) -> bytes:
     return decoded
 
 
+def valid_vapid_subject(value: object) -> bool:
+    """Accept bounded operator contacts supported by the pinned signing library."""
+    if not isinstance(value, str) or not 1 <= len(value) <= 2048:
+        return False
+    if any(ord(char) <= 32 or ord(char) >= 127 for char in value):
+        return False
+    host = r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?"
+    if value.startswith("mailto:"):
+        return re.fullmatch(r"mailto:[A-Za-z0-9.!$%&'*+_=^`{|}~-]+@" + host, value) is not None
+    try:
+        url = urlsplit(value)
+        return (value == "https://" + url.netloc and url.username is None and url.password is None
+                and not url.netloc.endswith(":")
+                and re.fullmatch(host, url.hostname or "") is not None
+                and (url.port is None or 1 <= url.port <= 65535))
+    except ValueError:
+        return False
+
+
 def validate(document: object) -> dict:
     if not isinstance(document, dict):
         raise ValueError("invalid input")
@@ -80,7 +99,8 @@ def validate(document: object) -> dict:
     ttl = document.get("ttl")
     if type(ttl) is not int or not 0 <= ttl <= 2419200:
         raise ValueError("invalid ttl")
-    if document.get("vapid_subject") != VAPID_SUBJECT:
+    subject = document.get("vapid_subject")
+    if not valid_vapid_subject(subject):
         raise ValueError("invalid vapid subject")
     key_path = document.get("vapid_private_key_path")
     if not isinstance(key_path, str) or not Path(key_path).is_absolute():
@@ -90,7 +110,7 @@ def validate(document: object) -> dict:
         raise ValueError("invalid private key file")
     return {"subscription": {"endpoint": subscription["endpoint"],
                              "keys": {"p256dh": keys["p256dh"], "auth": keys["auth"]}},
-            "data": data, "key_path": key_path, "ttl": ttl}
+            "data": data, "key_path": key_path, "ttl": ttl, "vapid_subject": subject}
 
 
 def retry_delay(value: object, *, now: datetime | None = None) -> float | None:
@@ -103,7 +123,7 @@ def retry_delay(value: object, *, now: datetime | None = None) -> float | None:
             date = parsedate_to_datetime(value)
             if date.tzinfo is None:
                 return None
-            delay = (date - (now or datetime.now(timezone.utc))).total_seconds()
+            delay = (date - (now or datetime.now(UTC))).total_seconds()
         except (TypeError, ValueError, OverflowError):
             return None
     return min(86400.0, max(0.0, delay)) if math.isfinite(delay) else None
@@ -200,7 +220,7 @@ def send(document: dict) -> dict:
         try:
             response = webpush(subscription_info=document["subscription"], data=document["data"],
                                vapid_private_key=document["key_path"],
-                               vapid_claims={"sub": VAPID_SUBJECT}, ttl=document["ttl"],
+                               vapid_claims={"sub": document["vapid_subject"]}, ttl=document["ttl"],
                                timeout=TIMEOUT, requests_session=session, verbose=False)
             return response_result(response)
         except WebPushException as exc:

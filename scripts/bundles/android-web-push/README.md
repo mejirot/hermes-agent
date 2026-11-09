@@ -101,3 +101,28 @@ An existing `HERMES_WEBAPP_DIST` mount or override must select the new renderer
 at deployment. The custom image defaults to its baked renderer at
 `/opt/hermes/apps/desktop/dist-webapp`. Deployment files and private PM snapshots
 belong outside this repository, under the operator's runtime directory.
+
+## Operator contact before deployment
+
+Configure Web Push in the serving Webapp home's private `config.yaml`. Replace
+the placeholder below with the operator's own contact before use; do not put the
+deployment's configuration in the source repository or image build context.
+
+```yaml
+webapp:
+  push:
+    enabled: true
+    vapid_subject: "https://operator.example"
+```
+
+The contact may be a single `mailto:` address, such as
+`mailto:push@operator.example`, or an HTTPS origin without a path, query or
+fragment. It is the VAPID contact URI, not the PWA origin or Push delivery
+endpoint. No contact is supplied by default. An absent or invalid value leaves
+Push unavailable while the rest of the Webapp remains usable.
+
+Before upgrading an existing deployment, add this setting to its private
+configuration, then restart the serving Webapp as part of the approved cutover.
+Preserve its existing persistent data, VAPID key and browser subscriptions.
+Changing only the contact URI requires neither key rotation nor browser
+re-enrollment.

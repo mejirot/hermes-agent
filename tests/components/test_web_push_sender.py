@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 import importlib.util
 import io
 import json
@@ -33,7 +33,7 @@ def document(tmp_path):
                                       "auth": encode(b"a" * 16)}},
             "payload": {"title": "Hermes", "event_id": "event-1"},
             "vapid_private_key_path": str(key),
-            "vapid_subject": "https://mejilab.com", "ttl": 300}
+            "vapid_subject": "https://example.com", "ttl": 300}
 
 
 @pytest.mark.parametrize("endpoint", [
@@ -66,8 +66,15 @@ def test_input_and_output_are_bounded_and_do_not_disclose_failures(sender, docum
 
 @pytest.mark.parametrize("field,value", [("ttl", True), ("ttl", -1), ("ttl", 2419201),
                                          ("payload", {"body": "x" * 3073}),
-                                         ("vapid_subject", "mailto:other@example.test"),
-                                         ("vapid_subject", "https://github.com/mejirot/hermes-agent"),
+                                         ("vapid_subject", None), ("vapid_subject", ""),
+                                         ("vapid_subject", "http://example.com"),
+                                         ("vapid_subject", "https://example.com/"),
+                                         ("vapid_subject", "https://example.com/contact"),
+                                         ("vapid_subject", "https://example.com?contact=ops"),
+                                         ("vapid_subject", "https://user@example.com"),
+                                         ("vapid_subject", "https://example.com:"),
+                                         ("vapid_subject", "https://example.com:65536"),
+                                         ("vapid_subject", "mailto:not-an-address"),
                                          ("vapid_private_key_path", "relative.pem")])
 def test_malformed_or_oversized_input_is_refused(sender, document, field, value):
     document[field] = value
@@ -180,11 +187,13 @@ def test_response_body_is_bounded_before_pywebpush_reads_it(sender, monkeypatch)
     assert limits == [sender.MAX_RESPONSE]
 
 
-def test_real_encryption_uses_dedicated_transport_and_returns_only_metadata(sender, document, monkeypatch):
+@pytest.mark.parametrize("subject", ["https://example.com", "mailto:push@example.com"])
+def test_real_encryption_uses_dedicated_transport_and_returns_only_metadata(sender, document, monkeypatch, subject):
     import requests
     from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ec
 
+    document["vapid_subject"] = subject
     private_key = ec.generate_private_key(ec.SECP256R1())
     Path(document["vapid_private_key_path"]).write_bytes(private_key.private_bytes(
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
@@ -196,6 +205,10 @@ def test_real_encryption_uses_dedicated_transport_and_returns_only_metadata(send
     def respond(_adapter, request, **kwargs):
         attempts.append(request)
         assert request.headers["Authorization"].startswith("vapid ")
+        parameters = dict(part.strip().split("=", 1) for part in request.headers["Authorization"][6:].split(","))
+        encoded_claims = parameters["t"].split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(encoded_claims + "=" * (-len(encoded_claims) % 4)))
+        assert claims["sub"] == subject
         assert b"event-1" not in request.body
         reply = requests.Response()
         reply.status_code = 201
@@ -225,7 +238,7 @@ def test_real_encryption_uses_dedicated_transport_and_returns_only_metadata(send
 def test_retry_after_and_expired_subscription_metadata(sender):
     assert sender.response_result(SimpleNamespace(status_code=410, headers={})) == sender.result(
         status=410, error_code="subscription_gone")
-    now = datetime(2026, 11, 9, tzinfo=timezone.utc)
+    now = datetime(2026, 11, 9, tzinfo=UTC)
     assert sender.retry_delay("Mon, 09 Nov 2026 00:01:00 GMT", now=now) == 60
     assert sender.retry_delay("120") == 120
     assert sender.retry_delay("NaN") is None

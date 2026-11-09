@@ -982,7 +982,7 @@ DEFAULT_CONFIG = {
         },
     },
     "webapp": {"enabled": False, "host": "127.0.0.1", "port": 9120, "public_url": "",
-               "push": {"enabled": False}},  # gateway/webapp_listener.py; web_push_worker.py
+               "push": {"enabled": False, "vapid_subject": ""}},  # gateway/webapp_listener.py; web_push_worker.py
     "dashboard": {
         # Visual theme: "default" | "midnight" | "ember" | "mono" | "cyberpunk" | "rose"
         "theme": "default",
