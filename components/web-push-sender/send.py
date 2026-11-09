@@ -22,7 +22,7 @@ import sys
 from urllib.parse import urlsplit
 
 FCM_HOST = "fcm.googleapis.com"
-VAPID_SUBJECT = "https://github.com/mejirot/hermes-agent"
+VAPID_SUBJECT = "https://mejilab.com"
 TIMEOUT = 10
 MAX_INPUT = 16384
 MAX_PAYLOAD = 3072

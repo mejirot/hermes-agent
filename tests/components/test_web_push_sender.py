@@ -33,7 +33,7 @@ def document(tmp_path):
                                       "auth": encode(b"a" * 16)}},
             "payload": {"title": "Hermes", "event_id": "event-1"},
             "vapid_private_key_path": str(key),
-            "vapid_subject": "https://github.com/mejirot/hermes-agent", "ttl": 300}
+            "vapid_subject": "https://mejilab.com", "ttl": 300}
 
 
 @pytest.mark.parametrize("endpoint", [
@@ -67,6 +67,7 @@ def test_input_and_output_are_bounded_and_do_not_disclose_failures(sender, docum
 @pytest.mark.parametrize("field,value", [("ttl", True), ("ttl", -1), ("ttl", 2419201),
                                          ("payload", {"body": "x" * 3073}),
                                          ("vapid_subject", "mailto:other@example.test"),
+                                         ("vapid_subject", "https://github.com/mejirot/hermes-agent"),
                                          ("vapid_private_key_path", "relative.pem")])
 def test_malformed_or_oversized_input_is_refused(sender, document, field, value):
     document[field] = value

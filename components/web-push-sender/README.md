@@ -21,13 +21,16 @@ Send exactly one JSON document on stdin, then close stdin:
   },
   "payload": {"id": "event-id", "title": "Hermes", "body": "A new update is available"},
   "vapid_private_key_path": "/opt/data/web-push/vapid-private.pem",
-  "vapid_subject": "https://github.com/mejirot/hermes-agent",
+  "vapid_subject": "https://mejilab.com",
   "ttl": 300
 }
 ```
 
 The private key must be an absolute, regular file, with no group/other access;
 symlinks are refused. No secret belongs in argv, image layers or source control.
+The VAPID subject identifies the operator's contact URI. The pinned library's
+strict HTTPS validation requires a host-only URI, so the fixed subject has no
+path. It does not configure the PWA origin or the subscription endpoint.
 The payload is limited to 3,072 UTF-8 bytes and the whole request to 16,384 bytes.
 TTL is an integer from zero through 2,419,200 seconds.
 

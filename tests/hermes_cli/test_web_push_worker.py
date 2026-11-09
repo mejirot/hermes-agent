@@ -45,6 +45,7 @@ async def test_payload_uses_private_sender_and_preview_preference(runtime, monke
     assert request["payload"]["body"] == "新しい返信があります。"
     assert "source_db" not in request["payload"]
     assert request["vapid_private_key_path"] == str(value.key_path)
+    assert request["vapid_subject"] == "https://mejilab.com"
     assert request["ttl"] <= 120
 
 

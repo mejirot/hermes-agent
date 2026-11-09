@@ -20,7 +20,7 @@ from hermes_cli.web_push_store import PushStore
 _log = logging.getLogger(__name__)
 SENDER_PYTHON = Path("/opt/hermes-web-push/bin/python")
 SENDER_SCRIPT = Path("/opt/hermes-web-push/send.py")
-VAPID_SUBJECT = "https://github.com/mejirot/hermes-agent"
+VAPID_SUBJECT = "https://mejilab.com"
 
 
 def configured(home: Path) -> bool:
