@@ -175,6 +175,10 @@ def _ask(events, session_id, method, params, *, cancelled, timeout, qids=None, r
     pending = _Pending(session_id, qids, events, method, {"session_id": session_id, **params}, replay)
     with _lock:
         _open[request_id] = pending
+    end_notice = None
+    with contextlib.suppress(Exception):
+        from gateway.session_web_push import viewer_wait
+        end_notice = viewer_wait(events, session_id, method, request_id, timeout)
     events.fanout.write({"jsonrpc": "2.0", "id": request_id, "method": method, "params": pending.params})
     waited = 0.0
     reason = "timeout"
@@ -185,6 +189,9 @@ def _ask(events, session_id, method, params, *, cancelled, timeout, qids=None, r
             break
         if timeout is not None and waited >= timeout:
             break
+    if end_notice is not None:
+        with contextlib.suppress(Exception):
+            end_notice()
     with _lock:
         still_open = _open.pop(request_id, None) is pending
         if still_open and pending.qids is not None:

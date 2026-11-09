@@ -2610,6 +2610,8 @@ def run_job(
             agent, prompt, job, job_id, job_name, scope.task_id, cancel_event,
             worker_state=_worker_state)
         final_response = _final_response_from_result(result, job_id, job_name, AIAgent)
+        from cron.web_push import record_run_receipt
+        record_run_receipt(job, result)
         if (setup.fallback_notice and final_response.strip() and not _is_cron_silence_response(final_response)
                 and _cron_failure_marker_error(final_response) is None):
             # Pre-agent provider switch (#74349) rides with the delivered report; silence and the
@@ -3055,6 +3057,7 @@ class _RunDelivery:
     incident_acked: bool = False
     failure_incident_id: Optional[str] = None
     side_effect_ownership_lost: bool = False
+    notification: Optional[dict] = None
 
 
 def _save_compose_deliver(
@@ -3064,6 +3067,8 @@ def _save_compose_deliver(
     """Save output, compose the notice and deliver it (both side effects run under the fire-claim
     fence; a lost claim raises ``_FireClaimLostDuringSideEffect`` for the caller)."""
     job = d.job
+    from hermes_cli.web_push_events import preview
+    d.notification = {'job_name': preview(job.get('name') or job['id'], 80), 'body': preview(final_response)}
     with fence.side_effect_fence() as owns_output:
         if not owns_output:
             raise _FireClaimLostDuringSideEffect
@@ -3088,6 +3093,8 @@ def _save_compose_deliver(
     ) = _compose_run_delivery(
         job, success=d.success, error=d.error, final_response=final_response,
         output_file=output_file, agent_declared=d.agent_declared)
+    if _silent_alert or d.incident_acked:
+        d.notification['silence_reason'] = 'blocked_config_already_alerted' if _silent_alert else 'incident_acknowledged'
     # Whitespace-only == empty: skip delivery; the guard below marks it a soft failure.
     d.should_deliver = bool(deliver_content.strip()) and not _silent_alert
     if d.should_deliver and not d.success and job.get("_model_unreachable"):
@@ -3098,6 +3105,7 @@ def _save_compose_deliver(
         from cron.unreachable_retry import will_retry
         if will_retry(job):
             d.should_deliver = False
+            d.notification['silence_reason'] = 'retry_pending'
             logger.info(
                 "Job '%s': suppressing failure notice — automatic re-run pending", job["id"])
     # Not a substring check: bare "SILENT"/"NO_REPLY" or a report quoting "[SILENT]" must
@@ -3108,6 +3116,7 @@ def _save_compose_deliver(
         # and wrongly swallowed a real report that merely quoted "[SILENT]" mid-sentence (#51438, #46917).
         logger.info("Job '%s': agent returned %s — skipping delivery", job["id"], SILENT_MARKER)
         d.should_deliver = False
+        d.notification['silence_reason'] = 'silent_marker'
 
     if d.should_deliver and fence.lost():
         d.should_deliver = False

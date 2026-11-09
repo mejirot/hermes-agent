@@ -1011,6 +1011,9 @@ def append_event(
         row = _reload(
             conn, f"SELECT {_EVENT_COLUMNS} FROM hosted_room_events WHERE room_id=? AND seq=?", (room_id, seq),
             "appended event could not be reloaded")
+        from gateway.hosted_room_web_push import record_group_reply
+        record_group_reply(conn, db_path, room_id=room_id, event_id=event_id, kind=kind,
+                           payload=resolved, created_at=now)
     return {**_event_from_row(row), "actor": normalized_actor}
 
 

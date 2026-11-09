@@ -249,11 +249,11 @@ function MessageRow({ author, avatarFor, binding, disabled, event, member, membe
     ? <span className="shrink-0 rounded bg-(--ui-surface-2) px-1 text-[0.625rem] text-(--ui-text-secondary)">{labels.scheduledPost}</span>
     : undefined
 
-  return <RoomMessage actions={canReply ? <ReplyAction author={author ?? ''} event={event} member={isUser ? undefined : member} onReply={onReply!} text={text} /> : undefined}
+  return <div data-push-room-message={event.event_id}><RoomMessage actions={canReply ? <ReplyAction author={author ?? ''} event={event} member={isUser ? undefined : member} onReply={onReply!} text={text} /> : undefined}
     author={author} avatar={face} badge={badge} isUser={isUser} timestampMs={eventTimeMs(event.created_at)}>
     <EventBody event={event} />
     <EventFiles binding={binding} disabled={disabled} event={event} />
-  </RoomMessage>
+  </RoomMessage></div>
 }
 
 function EventFiles({ binding, disabled, event }: { binding: CanonicalGroupBinding; disabled: boolean; event: CanonicalGroupEvent }) {

@@ -291,6 +291,9 @@ def mount_spa(application: FastAPI):
             and file_path.exists()
             and file_path.is_file()
         ):
+            if full_path in {"sw.js", "manifest.webmanifest"}:
+                media = "application/javascript" if full_path == "sw.js" else "application/manifest+json"
+                return FileResponse(file_path, media_type=media, headers={"Cache-Control": "no-cache"})
             return FileResponse(file_path)
         if is_static_asset_path(full_path):
             font = public_font_file(dist, WEB_DIST, full_path)

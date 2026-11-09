@@ -268,6 +268,8 @@ def settle_session_input(db, *, epoch: int, admission_id: str, generation: int, 
                          'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
                          (RESULT_PREFIX + admission_id, encoded))
         conn.execute("UPDATE session_admissions SET status='terminal',outcome=? WHERE admission_id=?", (outcome, admission_id))
+        from gateway.session_web_push import record_reply
+        record_reply(conn, db, row, outcome, result)
         settle_steer_transfers(conn, epoch=epoch, generation=generation, transfers=_transfers, outcome=outcome)
         conn.execute('UPDATE sessions SET runtime_revision=runtime_revision+1 WHERE id=?', (row['target_session_id'],))
         return _row(_admission(conn, admission_id))
@@ -689,6 +691,9 @@ def resolve_unknown_session_input(db, *, epoch: int, admission_id: str, generati
         _retire_admission_workers(conn, row, row['owner_epoch'])
         conn.execute("UPDATE session_admissions SET status='terminal',outcome=? WHERE admission_id=?",
                      (outcome, admission_id))
+        if _captured is not None and row['owner_epoch'] == epoch:
+            from gateway.session_web_push import record_reply
+            record_reply(conn, db, row, outcome, _captured[1])
         conn.execute('UPDATE sessions SET runtime_revision=runtime_revision+1 WHERE id=?', (row['target_session_id'],))
         return _row(_admission(conn, admission_id))
     return db._execute_write(write)

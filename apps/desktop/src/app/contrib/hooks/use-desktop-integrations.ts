@@ -12,6 +12,8 @@ import { getSession } from '@/hermes'
 import { resolveDeepLinkAction } from '@/lib/deeplink-routes'
 import { pathFromHermesDeepLink, resolveHermesOpenPath } from '@/lib/hermes-open-target'
 import { storedSessionIdForNotification } from '@/lib/session-ids'
+import { hostHas } from '@/lib/host-capabilities'
+import { webPushEventWasObserved } from '@/lib/web-push-observation'
 import { announceNewSessionDraftKey } from '@/store/composer'
 import { recordAction } from '@/store/desktop-metrics'
 import { onKeptRouteOpened } from '@/store/gateway-kept-routes'
@@ -44,6 +46,7 @@ import { onSessionsChanged } from '@/store/session-sync'
 import { requestSkillInstallFromDeepLink } from '@/store/skill-deeplink-install'
 import { openUpdatesWindow, startUpdatePoller, stopUpdatePoller } from '@/store/updates'
 import { isBrowserWindow, isHudWindow, isPeerInstanceWindow, isSecondaryWindow } from '@/store/windows'
+import { startWebPushPolling } from '@/store/web-push'
 import type { SessionInfo } from '@/types/hermes'
 
 import { requestComposerFocus, requestComposerInsert } from '../../chat/composer/focus'
@@ -91,6 +94,9 @@ export function useDesktopIntegrations({
   runtimeIdByStoredSessionId,
   sessions
 }: DesktopIntegrationsParams): void {
+  useEffect(() => {
+    if (hostHas('browserNotifications')) { return startWebPushPolling(webPushEventWasObserved) }
+  }, [])
   // Update polling — populates $desktopVersion/$updateStatus, which feed the
   // statusbar version pill and the update toasts. Also honors the main
   // process's "open updates" menu request.
@@ -307,7 +313,7 @@ export function useDesktopIntegrations({
           activeProfile
         )
       }
-    } else if (!routedSessionId && !isOverlayView(appViewForPath(locationPathname))) {
+    } else if (!routedSessionId && !locationPathname.startsWith('/push/open/') && !isOverlayView(appViewForPath(locationPathname))) {
       setRememberedRoute(locationPathname, activeProfile)
     }
   }, [

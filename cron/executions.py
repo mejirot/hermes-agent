@@ -99,6 +99,10 @@ def _initialize_schema(conn: sqlite3.Connection) -> None:
     add_column_if_missing(conn, "executions", "delivery_outcome", "delivery_outcome TEXT")
     add_column_if_missing(conn, "executions", "scheduled_instant", "scheduled_instant TEXT")
     add_column_if_missing(conn, "executions", "progress_at", "progress_at TEXT")
+    add_column_if_missing(conn, "executions", "session_id", "session_id TEXT")
+    add_column_if_missing(conn, "executions", "message_id", "message_id TEXT")
+    add_column_if_missing(conn, "executions", "notification_json", "notification_json TEXT")
+    add_column_if_missing(conn, "executions", "silence_reason", "silence_reason TEXT")
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_executions_occurrence "
         "ON executions(job_id, scheduled_instant) WHERE status='completed'"
@@ -344,9 +348,19 @@ def mark_execution_running(execution_id: str) -> Optional[dict[str, Any]]:
     return record
 
 
+def set_execution_session(execution_id: str, session_id: str, *, message_id: Optional[str] = None) -> None:
+    """Keep the canonical owner's actual receipt, never a most-recent-session lookup."""
+    if not isinstance(session_id, str) or not session_id:
+        return
+    with _transaction() as conn:
+        conn.execute("""UPDATE executions SET session_id=?,message_id=COALESCE(?,message_id)
+                     WHERE id=? AND status IN ('claimed','running','unknown')""",
+                     (session_id, message_id, execution_id))
+
+
 def finish_execution(
     execution_id: str, *, success: bool, error: Optional[str] = None,
-    delivery_outcome: Optional[str] = None, cancelled: bool = False,
+    delivery_outcome: Optional[str] = None, cancelled: bool = False, notification: Optional[dict] = None,
 ) -> Optional[dict[str, Any]]:
     """Write a terminal result once; terminal attempts cannot be rewritten.
 
@@ -370,6 +384,8 @@ def finish_execution(
             return None
         _prune_unlocked(conn)
         record = _fetch(conn, execution_id)
+        from cron.web_push import record_finished_execution
+        record_finished_execution(conn, record, notification)
     _emit_execution_state(record, delivery_outcome=delivery_outcome)
     record_cron_finish(record, delivery_outcome)
     return record
@@ -403,7 +419,7 @@ def record_missed_occurrences(
     return record
 
 
-def recover_receipted_execution(execution_id, job_id, *, success, error=None, delivery_outcome=None):
+def recover_receipted_execution(execution_id, job_id, *, success, error=None, delivery_outcome=None, notification=None):
     """Settle a verified canonical receipt after owner loss, including its unknown audit row.
 
     Terminal verdicts stay immutable. A live firer still owns its bookkeeping
@@ -421,6 +437,8 @@ def recover_receipted_execution(execution_id, job_id, *, success, error=None, de
              delivery_outcome, execution_id))
         _prune_unlocked(conn)
         record = _fetch(conn, execution_id)
+        from cron.web_push import record_finished_execution
+        record_finished_execution(conn, record, notification)
     _emit_execution_state(record, delivery_outcome=delivery_outcome)
     record_cron_finish(record, delivery_outcome)
     return record

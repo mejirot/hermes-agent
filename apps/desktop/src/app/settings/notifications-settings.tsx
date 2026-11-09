@@ -29,6 +29,7 @@ import { CONTROL_TEXT } from './constants'
 import { ListRow, SectionHeading, SettingsContent, ToggleRow } from './primitives'
 import { notificationKindSettingId, SETTING_IDS, settingElementId } from './settings-manifest'
 import { useSettingDeepLink } from './use-setting-deep-link'
+import { WebPushSettings } from './web-push-settings'
 
 const CAPTION = 'text-[length:var(--conversation-caption-font-size)] text-(--ui-text-tertiary)'
 
@@ -109,6 +110,7 @@ export function NotificationsSettings({ subpage }: NotificationsSettingsProps = 
           />
 
           {hostHas('browserNotifications') && <BrowserPermissionRow />}
+          {hostHas('browserNotifications') && <WebPushSettings />}
 
           {NATIVE_NOTIFICATION_KINDS.map(kind => (
             <ToggleRow

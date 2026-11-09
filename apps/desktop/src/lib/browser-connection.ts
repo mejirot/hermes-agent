@@ -14,6 +14,7 @@ import {
 } from '@/lib/browser-transport'
 import { browserLaunchProfileOrDefault } from '@/lib/platform'
 import { withTimeout } from '@/lib/with-timeout'
+import { clearLocalWebPush } from '@/lib/web-push'
 
 /** The serving origin is the only connection a browser-hosted Desktop has. */
 export function requireBrowserConnection(connectionId?: null | string): void {
@@ -259,6 +260,9 @@ export function createBrowserConnectionBridge({ api, bootstrap }: BrowserConnect
       if (!response.ok) {
         throw new Error(`Sign out failed (${response.status})`)
       }
+
+      // Server revocation is authoritative; also remove this browser's pending OS entries.
+      await clearLocalWebPush().catch(() => undefined)
 
       const login = new URL(`${bootstrap.basePath}/login`, window.location.origin)
       navigateToBrowserLogin(new BrowserReauthRequiredError('Signed out', login.href))

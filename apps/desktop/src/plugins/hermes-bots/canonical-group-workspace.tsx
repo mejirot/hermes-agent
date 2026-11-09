@@ -473,7 +473,8 @@ function CanonicalRoomView({ binding: initialBinding, visible, onBack }: {
 
   const canSend = canSendNow({ restored, busy, stopping, uploading, pending: !!pending, draft, attachments: attachments.length, driver: !!driver })
 
-  return <section className="flex h-full min-h-0">
+  return <section className="flex h-full min-h-0" data-push-connection={binding.connectionId}
+    data-push-profile={binding.profile} data-push-room-id={binding.roomId} data-push-room-visible={String(visible)}>
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <CanonicalGroupHeader busy={busy} canDisband={offersGroupMethod(methods, 'groups.disband')} canRename={offersGroupMethod(methods, 'groups.rename')}
         canStop={!!driver && offersGroupSafetyMethod(methods, 'groups.stop')} detailsOpen={detailsOpen} driver={driver} onBack={onBack} onDetails={() => setDetailsOpen(open => !open)}

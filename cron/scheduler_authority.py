@@ -104,6 +104,9 @@ def run_canonical_job(job, *, extra_prompt=None, cancel_event=None, execution_id
                 raise
         record['receipt'] = receipt
         save()
+        from cron.executions import set_execution_session
+        if receipt.get('session_id'):
+            await asyncio.to_thread(set_execution_session, params['request_id'], receipt['session_id'])
         delay, progress = .1, None
         while True:
             if cancel_event is not None and cancel_event.is_set():
@@ -118,6 +121,10 @@ def run_canonical_job(job, *, extra_prompt=None, cancel_event=None, execution_id
                 await asyncio.to_thread(touch_execution_progress, request_id)
             if state['status'] == 'terminal':
                 job.update(state.get('job_flags') or {})
+                saved = job.get('_web_push_receipt') or {}
+                if saved.get('session_id'):
+                    await asyncio.to_thread(set_execution_session, params['request_id'], saved['session_id'],
+                                            message_id=saved.get('message_id'))
                 return tuple(state['result'])
             if state['status'] == 'unknown':
                 raise CronExecutionUnknown('unknown_execution: cron admission was not replayed')
@@ -211,9 +218,17 @@ def reconcile_pending(*, allow_connect=True):
                     record['pause_recorded'] = _pause_identity(pause_job(params['job_id'], reason=reason))
                     atomic_json_write(journal, record, mode=0o600, fsync_dir=True)
                 continue
+            receipt = state if state.get('session_id') else record.get('receipt') or {}
+            if receipt.get('session_id'):
+                from cron.executions import set_execution_session
+                set_execution_session(params['request_id'], receipt['session_id'])
             success, output, answer, error = state['result']
             job = dict(state['job'], **(state.get('job_flags') or {}))
             job['execution_id'] = params['request_id']
+            saved = job.get('_web_push_receipt') or {}
+            if saved.get('session_id'):
+                from cron.executions import set_execution_session
+                set_execution_session(params['request_id'], saved['session_id'], message_id=saved.get('message_id'))
             # The same result verdicts as the ordinary tail: an agent-declared [CRON_FAILURE] and a
             # blank answer are failures, whichever process books them.
             success, error, declared = _apply_agent_failure_marker(job, success, error, answer)

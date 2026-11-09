@@ -21,6 +21,7 @@ import { $freshDraftReady, $gatewayState } from '@/store/session'
 
 import { ChatView } from '../chat'
 import { ChatSidebar } from '../chat/sidebar'
+import { PushNotificationOpenView } from '../push-notification-open'
 import { TerminalPaneChrome } from '../right-sidebar/terminal/chrome'
 import { contributedRoutes, NEW_CHAT_ROUTE, ROUTES_AREA, sessionRoute } from '../routes'
 import { useStatusSnapshot } from '../shell/hooks/use-status-snapshot'
@@ -188,6 +189,7 @@ export const ChatRoutesSurface = memo(function ChatRoutesSurface({
     <Routes>
       <Route element={chatView} index />
       <Route element={chatView} path=":sessionId" />
+      <Route element={page(<PushNotificationOpenView />)} path="push/open/:eventId" />
       <Route element={page(<CapabilitiesView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="capabilities" />
       <Route element={page(<MessagingView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="messaging" />
       <Route element={page(<ArtifactsView setStatusbarItemGroup={setStatusbarItemGroup} />)} path="artifacts" />

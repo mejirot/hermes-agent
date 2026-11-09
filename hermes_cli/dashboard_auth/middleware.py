@@ -47,10 +47,10 @@ _GATE_PUBLIC_PREFIXES: tuple[str, ...] = (
     "/api/auth/providers", "/api/mcp/oauth/callback/",
     "/assets/", "/dashboard-plugins/", "/favicon.ico", "/ds-assets/", "/fonts/", "/fonts-terminal/")
 
-# Page icons, matched exactly. Browsers fetch them without cookies (the Webapp's page icon and
-# home-screen icon are ``/apple-touch-icon.png``), so behind the gate they hit the sign-in redirect
-# and log an auto-SSO ``login_start`` with no sign-in behind it.
-_GATE_PUBLIC_ICONS: frozenset[str] = frozenset({"/apple-touch-icon.png"})
+# Exact, code-only PWA files and page icons. A missing file is a real 404; adjacent
+# paths never inherit this exception. Worker updates must work after a login expires.
+_GATE_PUBLIC_ICONS: frozenset[str] = frozenset({
+    "/apple-touch-icon.png", "/sw.js", "/manifest.webmanifest", "/pwa/icon-192.png", "/pwa/icon-512.png"})
 
 
 def _path_is_public(path: str) -> bool:

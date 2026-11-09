@@ -11,6 +11,8 @@
 
 import { flagTabAttention } from '@/store/browser-tab-attention'
 
+import { registerWebPushWorker, serverCoversBrowserNotification, webPushCapability } from './web-push'
+
 export type BrowserNotificationPermission = 'default' | 'denied' | 'granted' | 'insecure' | 'unsupported'
 
 export function browserNotificationPermission(): BrowserNotificationPermission {
@@ -45,6 +47,14 @@ export function onBrowserFocusSession(callback: FocusSessionListener): () => voi
   return () => focusSessionListeners.delete(callback)
 }
 
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', event => {
+    if (event.data?.type === 'hermes:local-focus-session' && typeof event.data.session_id === 'string') {
+      focusSessionListeners.forEach(listener => listener(event.data.session_id))
+    }
+  })
+}
+
 export interface BrowserNotifyPayload {
   body?: string
   focusSessionId?: string
@@ -55,7 +65,7 @@ export interface BrowserNotifyPayload {
 }
 
 /** Flash the tab, then show a browser notification when the user allowed it. */
-export function showBrowserNotification(payload: BrowserNotifyPayload): boolean {
+export async function showBrowserNotification(payload: BrowserNotifyPayload): Promise<boolean> {
   const title = payload.title || 'Hermes'
 
   flagTabAttention(title)
@@ -64,23 +74,38 @@ export function showBrowserNotification(payload: BrowserNotifyPayload): boolean 
     return false
   }
 
+  if ((payload.focusSessionId || payload.sessionId) && serverCoversBrowserNotification(payload.kind)) { return true }
+
   const focusSessionId = payload.focusSessionId || payload.sessionId
 
-  const notification = new Notification(title, {
+  const options = {
     body: payload.body,
     // One OS entry per session+kind: a replayed event replaces, never stacks.
     tag: `hermes:${payload.kind ?? ''}:${focusSessionId ?? payload.tag ?? ''}`
-  })
-
-  notification.onclick = () => {
-    // A click on our own notification is the user's request to come back.
-    window.focus()
-    notification.close()
-
-    if (focusSessionId) {
-      focusSessionListeners.forEach(listener => listener(focusSessionId))
-    }
   }
 
-  return true
+  try {
+    if (webPushCapability() === 'supported') {
+      const registration = await registerWebPushWorker()
+      if (registration.active) {
+        await registration.showNotification(title, { ...options, data: { local_session_id: focusSessionId } })
+        return true
+      }
+    }
+    const notification = new Notification(title, options)
+
+    notification.onclick = () => {
+      // A click on our own notification is the user's request to come back.
+      window.focus()
+      notification.close()
+
+      if (focusSessionId) {
+        focusSessionListeners.forEach(listener => listener(focusSessionId))
+      }
+    }
+
+    return true
+  } catch {
+    return false
+  }
 }

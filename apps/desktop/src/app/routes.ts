@@ -236,6 +236,7 @@ export function sessionRoute(sessionId: string): string {
 
 export function appViewForPath(pathname: string): AppView {
   const path = routePathname(pathname)
+  if (path.startsWith('/push/open/')) { return 'extension' }
 
   if (isNewChatRoute(path) || routeSessionId(path)) {
     return 'chat'

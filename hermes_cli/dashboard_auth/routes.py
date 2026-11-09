@@ -524,6 +524,8 @@ async def auth_logout(request: Request):
            user_id=(sess.user_id if sess else ""))
     prefix = _prefix(request)
     resp = RedirectResponse(url=f"{prefix}/login", status_code=302)
+    from hermes_cli.web_routers.web_push import revoke_on_logout
+    await revoke_on_logout(request, resp)
     clear_session_cookies(resp, prefix=prefix, gateway=webapp_sign_in.cookie_gateway(request))
     _clear_pkce(resp, request)
     return resp

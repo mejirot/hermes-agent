@@ -1811,7 +1811,10 @@ export function openGroupChat(group: string, origin: CanonicalGroupOrigin): void
   // #93813: what reached the members' room sessions while nobody drove them
   // (a Bot posting reports into its own session, a CLI resume) is posted as
   // the room opens, not only once the room next drives that member.
-  void sweepExternalGroupWrites(group, groupChatMemberBots(group, $lastRoster.get(), $botMeta.get()))
+  if (!canonicalGroupKeyRoute(group, origin)) {
+    // A canonical room's gateway log is authoritative; opening it never drives classic sessions.
+    void sweepExternalGroupWrites(group, groupChatMemberBots(group, $lastRoster.get(), $botMeta.get()))
+  }
 
   if (typeof host.openWorkspace === 'function') {
     try {

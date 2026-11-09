@@ -4,6 +4,8 @@ Ordinary approvals and clarify prompts share the existing native waiters.
 Secret/sudo prompts remain native; no response is published or journaled here.
 """
 from copy import deepcopy
+import logging
+import time
 
 from hermes_state_runtime import RuntimeStoreError
 from tools.approval import list_gateway_approvals, resolve_gateway_approval
@@ -14,6 +16,32 @@ class PendingControls:
         self.events = events
         self.pending = {}
         self.remote_responders = {}
+        self.on_change = None
+        self.deadlines = {}
+
+    def _changed(self, prompt, active):
+        if self.on_change is not None:
+            try:
+                self.on_change({**prompt, '_web_push_expires_at': self.deadlines.get(prompt['prompt_id'])}, active)
+            except Exception:
+                logging.getLogger(__name__).warning('Pending notification projection failed', exc_info=True)
+
+    def forget(self, prompt_id):
+        saved = self.pending.pop(prompt_id, None)
+        if saved is not None:
+            self._changed(saved[1], False)
+        self.deadlines.pop(prompt_id, None)
+        return saved
+
+    def _settled_elsewhere(self, session_id, prompt_id, generation):
+        with self.events.lock:
+            saved = self.pending.get(prompt_id)
+            if saved is None or saved[1]['execution_generation'] != generation:
+                return
+            self.forget(prompt_id)
+            self.remote_responders.pop(prompt_id, None)
+            self.events.publish(session_id, {'prompt_id': prompt_id, 'execution_generation': generation},
+                                event_type=saved[1]['kind'] + '.settled')
 
     def register(self, session_id, route, generation, data, *, timeout_s=None):
         from gateway.run import _redact_approval_command
@@ -35,7 +63,16 @@ class PendingControls:
             if timeout_s is not None:
                 prompt['timeout_s'] = timeout_s
             self.pending[prompt_id] = (route, prompt)
+            self.deadlines[prompt_id] = time.time() + min(120, max(0, timeout_s if timeout_s is not None else 120))
             self.events.publish(session_id, prompt, event_type='approval.request')
+            self._changed(prompt, True)
+            from tools.approval import observe_gateway_settle
+            observed = observe_gateway_settle(route, prompt_id,
+                                              lambda _reason: self._settled_elsewhere(session_id, prompt_id, generation))
+            if not observed and prompt_id not in self.remote_responders:
+                # The native waiter may have resolved between rendering and observer registration.
+                # Managed-worker prompts live in the worker, so their explicit responder is the proof.
+                self.snapshot(session_id, generation)
 
     def register_clarify(self, session_id, generation, entry, *, timeout_s=None):
         from gateway.run import _redact_approval_command
@@ -48,7 +85,9 @@ class PendingControls:
             if timeout_s is not None:
                 prompt["timeout_s"] = timeout_s
             self.pending[entry.clarify_id] = (entry, prompt)
+            self.deadlines[entry.clarify_id] = time.time() + min(120, max(0, timeout_s if timeout_s is not None else 120))
             self.events.publish(session_id, prompt, event_type="clarify.request")
+            self._changed(prompt, True)
 
     def snapshot(self, session_id, generation):
         with self.events.lock:
@@ -57,7 +96,7 @@ class PendingControls:
                           (not route.event.is_set() if prompt['kind'] == 'clarify' else
                            any(p['request_id'] == prompt_id for p in list_gateway_approvals(route))))
                 if prompt['execution_generation'] != generation or not active:
-                    del self.pending[prompt_id]
+                    self.forget(prompt_id)
                     self.remote_responders.pop(prompt_id, None)
                     self.events.publish(session_id, {'prompt_id': prompt_id,
                         'execution_generation': prompt['execution_generation']}, event_type=prompt['kind'] + '.settled')
@@ -80,7 +119,7 @@ class PendingControls:
                     raise RuntimeStoreError('invalid_params')
                 self.remote_responders[prompt_id](kind, prompt_id, response[field])
                 del self.remote_responders[prompt_id]
-                del self.pending[prompt_id]
+                self.forget(prompt_id)
                 self.events.publish(session_id, {'prompt_id': prompt_id, 'execution_generation': generation},
                                     event_type=kind + '.settled')
                 return {'status': 'resolved', 'prompt_id': prompt_id}
