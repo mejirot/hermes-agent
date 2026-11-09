@@ -70,6 +70,7 @@ USER root
 WORKDIR /opt/hermes
 ARG FORK_COMMIT
 COPY --link --chmod=a+rX,go-w snapshot/ /opt/hermes/
+COPY --link --chmod=0755 snapshot/docker/entrypoint-dispatch.sh /opt/hermes/docker/entrypoint-dispatch.sh
 COPY --link --chmod=a+rX,go-w renderer/ /opt/hermes/apps/desktop/dist-webapp/
 COPY --from=sender --link --chmod=a+rX,go-w /opt/hermes-web-push/ /opt/hermes-web-push/
 COPY source-inputs.json /opt/hermes-web-push/source-inputs.json
