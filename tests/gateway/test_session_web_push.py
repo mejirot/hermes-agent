@@ -145,7 +145,9 @@ def test_pending_event_is_not_current_after_deadline(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('different_owner_profile', [False, True])
-def test_group_pending_preserves_owner_and_member_identity_and_rechecks_stop(tmp_path, monkeypatch, different_owner_profile):
+@pytest.mark.parametrize('source_id', ['desktop', 'cron:scheduled-job', 'cron-notice:scheduled-job'])
+def test_group_pending_preserves_owner_and_member_identity_and_rechecks_stop(
+        tmp_path, monkeypatch, different_owner_profile, source_id):
     from gateway import hosted_room_driver as driver, hosted_rooms
     from gateway.session_web_push import _write_pending
     identity = driver.TaskIdentity('room', 'task', 'thread', 'turn')
@@ -165,19 +167,31 @@ def test_group_pending_preserves_owner_and_member_identity_and_rechecks_stop(tmp
             ('gateway.hosted.owner.v1:room', 'human')))
         hosted_rooms.create_room(source.db_path, room_id='room', name='Room', authority_gateway_id='gateway',
             members=[{'member_id': 'member', 'profile': 'target-bot', 'handle': 'bot'}])
+        source_event = hosted_rooms.append_event(source.db_path, room_id='room', event_id='input', kind='message.user',
+            actor={'kind': 'user', 'id': source_id}, payload={'text': '@bot hello', 'thread_id': 'thread'},
+            authority_gateway_id='gateway', authority_epoch=1)
+        hosted_rooms.append_event(source.db_path, room_id='room', event_id='newer-input', kind='message.user',
+            actor={'kind': 'user', 'id': 'desktop'}, payload={'text': 'Later input', 'thread_id': 'later-thread'},
+            authority_gateway_id='gateway', authority_epoch=1)
         driver.admit_task(source.db_path, identity, payload={'target_profile': 'target-bot',
-            'target_member_id': 'member', 'source_event_seq': 1, 'prompt': 'hello'}, clock=time.time)
+            'target_member_id': 'member', 'source_event_seq': source_event['seq'], 'prompt': 'hello'}, clock=time.time)
         lease = driver.acquire_lease(source.db_path, room_id='room', gateway_id='gateway', authority_epoch=1,
                                      process_generation='test', ttl_seconds=120, clock=time.time)
         driver.start_task(source.db_path, identity, lease, expected_cancel_generation=0, clock=time.time)
         _write_pending(SimpleNamespace(db=db, epoch=epoch), 'saved', {'kind': 'approval', 'prompt_id': 'approval',
             'execution_generation': row['generation'], '_web_push_expires_at': time.time() + 60}, True)
+        if source_id != 'desktop':
+            assert iter_events(db.db_path, 0) == []
+            return
         event, = iter_events(db.db_path, 0)
         assert event['profile'] == ('room-owner' if different_owner_profile else 'target-bot')
         assert event['target']['session_profile'] == 'target-bot'
         assert event['target']['task_id'] == 'task'
         assert event['target']['prompt_id'] == 'approval'
         assert pending_event_is_current(event, db.db_path)
+        for coordinate in ('task_id', 'thread_id', 'turn_id', 'member_id'):
+            assert not pending_event_is_current({**event, 'target': {
+                **event['target'], coordinate: 'other'}}, db.db_path)
         driver.begin_task_cancel(source.db_path, identity, cancel_id='stop', expected_cancel_generation=0, clock=time.time)
         assert not pending_event_is_current(event, db.db_path)
     finally:

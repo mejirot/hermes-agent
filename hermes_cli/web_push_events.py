@@ -75,7 +75,7 @@ def _source_identity(conn):
     if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='web_push_source'").fetchone() is None:
         return None
     row = conn.execute('SELECT identity FROM web_push_source WHERE singleton=1').fetchone()
-    if row is None or len(row[0]) != 32 or any(char not in '0123456789abcdef' for char in row[0]):
+    if row is None or not isinstance(row[0], str) or len(row[0]) != 32 or any(char not in '0123456789abcdef' for char in row[0]):
         raise ValueError('invalid web push source identity')
     return row[0]
 
@@ -128,6 +128,10 @@ def _group_pending_current(conn, target, principal):
 
 def _room_wait_is_current(conn, target, owner):
     from gateway.owner_identity import same_owner
+    from gateway.hosted_room_web_push import interactive_group_task
+    if not interactive_group_task(conn, **{key: target[key] for key in (
+            'room_id', 'task_id', 'thread_id', 'turn_id', 'member_id', 'execution_generation')}):
+        return False
     row = conn.execute('SELECT value FROM state_meta WHERE key=?',
                        ('gateway.hosted.owner.v1:' + target['room_id'],)).fetchone()
     if row is None or not same_owner(row[0], owner):

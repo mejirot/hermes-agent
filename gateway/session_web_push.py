@@ -57,6 +57,7 @@ def _hosted_origin(conn, row, profile):
     if not row['request_id'].startswith('hosted:'):
         return None
     try:
+        session_profile = profile
         task, generation = json.loads(row['request_id'][7:])
         if type(generation) is not int or generation < 1 or set(task) != {'room_id', 'task_id', 'thread_id', 'turn_id'}:
             return None
@@ -77,14 +78,20 @@ def _hosted_origin(conn, row, profile):
             if not same_owner(owner[0], row['principal_id']):
                 return None
             task_row = conn.execute('''SELECT payload_json FROM hosted_room_driver_tasks
-                WHERE room_id=? AND task_id=? AND execution_generation=? AND status='running' ''',
-                (task['room_id'], task['task_id'], generation)).fetchone()
+                WHERE room_id=? AND task_id=? AND thread_id=? AND turn_id=?
+                    AND execution_generation=? AND status='running' ''',
+                (task['room_id'], task['task_id'], task['thread_id'], task['turn_id'], generation)).fetchone()
             if task_row is None:
                 return None
             payload = json.loads(task_row[0])
             member_id = payload.get('target_member_id') or payload['target_profile']
-        return {'kind': 'group', 'profile': profile, **task, 'member_id': member_id,
-                'execution_generation': generation}
+        origin = {'kind': 'group', 'profile': profile, **task, 'member_id': member_id,
+                  'execution_generation': generation}
+        from hermes_cli.web_push_events import _group_pending_current
+        if not _group_pending_current(conn, {'session_id': row['target_session_id'],
+                'session_profile': session_profile, **origin}, row['principal_id']):
+            return None
+        return origin
     except (KeyError, TypeError, ValueError):
         return None
 
