@@ -1,4 +1,5 @@
 """Notification eligibility belongs to the admitted input and commits with its terminal result."""
+import asyncio
 from types import SimpleNamespace
 from dataclasses import asdict
 import json
@@ -8,11 +9,14 @@ import time
 
 import pytest
 
+from gateway.session_controls import AuthorityConnection
+from gateway.session_operator import is_viewer_input
+
 from hermes_cli.web_push_events import iter_events, pending_event_is_current
 from hermes_state import SessionDB
 from hermes_state_runtime import (
     admit_session_input, begin_runtime_epoch, claim_session_input, get_session_admission,
-    resolve_unknown_session_input, settle_session_input,
+    list_session_admissions, resolve_unknown_session_input, settle_session_input,
 )
 
 
@@ -281,3 +285,104 @@ def test_pending_housekeeping_is_bounded_and_keeps_unexpired_requests(tmp_path, 
             assert conn.execute("SELECT COUNT(*) FROM web_push_pending WHERE event_key LIKE 'old-%'").fetchone()[0] == 5
             current = conn.execute("SELECT active FROM web_push_pending WHERE prompt_id='current'").fetchone()
             assert current is not None and current[0] == 0
+
+
+async def _operator_chat(tmp_path, monkeypatch):
+    from gateway import run
+    from gateway.config import GatewayConfig
+    from gateway.session import SessionStore
+    from gateway.session_authority import initialize_session_authority
+    from gateway.session_local import create_local_session
+
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setattr(run, "_load_gateway_config", lambda: {"platform_toolsets": {"cli": []}})
+    store = SessionStore(tmp_path / "sessions", GatewayConfig())
+    runner = SimpleNamespace(
+        session_store=store, _session_db=store._db, adapters={}, _draining=False,
+        _cached_agent_for=lambda route: None, _adapter_for_source=lambda source: None,
+        _evict_cached_agent=lambda route: None,
+    )
+    authority = await initialize_session_authority(
+        runner, profile_id=str(tmp_path), instance_id="web-operator-fixture")
+    connection = AuthorityConnection(authority, object(), {"user_id": "owner"}, operator=True)
+    ref = create_local_session(authority, connection.actor, {
+        "request_id": "create", "source": "gui", "cwd": str(tmp_path),
+        "model": "fixture", "toolsets": [],
+    })
+    snapshot = await authority.attach(connection.actor, ref)
+    connection.subscriptions[ref.session_id] = snapshot.subscription_id
+    return authority, connection, ref
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cli_turn", [False, True])
+async def test_web_operator_prompt_reaches_execution_and_terminal_result(tmp_path, monkeypatch, cli_turn):
+    authority, connection, ref = await _operator_chat(tmp_path, monkeypatch)
+    executed = []
+
+    async def execute(owner, target, row):
+        assert is_viewer_input(row)
+        assert get_session_admission(owner.db, admission_id=row["admission_id"])["status"] == "started"
+        executed.append(row["admission_id"])
+        return "fixture reply"
+
+    monkeypatch.setattr("gateway.session_finite.execute_finite_admission", execute)
+    try:
+        reply = await connection.dispatch({
+            "id": 1, "method": "prompt.submit", "params": {
+                "session_id": ref.session_id, "input_id": "web-prompt", "text": "hello",
+                **({"clarify_batch": True} if cli_turn else {}),
+            },
+        })
+        assert "error" not in reply, reply
+        admission_id = reply["result"]["admission_id"]
+        await asyncio.wait_for(authority.sessions[ref.session_id].task, timeout=5)
+        row = get_session_admission(authority.db, admission_id=admission_id)
+        assert row["payload"]["web_push_origin_v1"] == {"kind": "interactive"}
+        assert ("cli_turn_v1" in row["payload"]) is cli_turn
+        assert (row["status"], row["outcome"]) == ("terminal", "completed")
+        assert executed == [admission_id]
+    finally:
+        await connection.close()
+        authority.db.close()
+
+
+@pytest.mark.asyncio
+async def test_web_prompt_rejects_forged_origin_unknown_fields_and_nonowner(tmp_path, monkeypatch):
+    authority, connection, ref = await _operator_chat(tmp_path, monkeypatch)
+    stranger = AuthorityConnection(authority, object(), {"user_id": "stranger"})
+    executed = []
+
+    async def execute(owner, target, row):
+        executed.append(row["admission_id"])
+        return "unexpected execution"
+
+    monkeypatch.setattr("gateway.session_finite.execute_finite_admission", execute)
+    try:
+        for index, extra in enumerate((
+                {"web_push_origin_v1": {"kind": "interactive"}},
+                {"unrecognized_input_field": True})):
+            refused = await connection.dispatch({
+                "id": index, "method": "prompt.submit", "params": {
+                    "session_id": ref.session_id, "input_id": f"forged-{index}",
+                    "text": "must not run", **extra,
+                },
+            })
+            assert refused["error"]["message"] == "invalid_params", refused
+
+        resumed = await stranger.dispatch({
+            "id": 3, "method": "session.resume", "params": {"session_id": ref.session_id},
+        })
+        assert resumed["error"]["message"] == "permission_denied", resumed
+        refused = await stranger.dispatch({
+            "id": 4, "method": "prompt.submit", "params": {
+                "session_id": ref.session_id, "input_id": "foreign", "text": "must not run",
+            },
+        })
+        assert refused["error"]["message"] == "permission_denied", refused
+        assert list_session_admissions(authority.db, session_id=ref.session_id, pending_only=False) == []
+        assert executed == []
+    finally:
+        await stranger.close()
+        await connection.close()
+        authority.db.close()
